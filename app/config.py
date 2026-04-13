@@ -23,6 +23,9 @@ class Config:
     #   SQLITE_DB_PATH=C:\path\to\edumind_ai.db
     _database_url = os.environ.get('DATABASE_URL', '').strip()
     if _database_url:
+        # Some providers still hand out `postgres://...` URLs; SQLAlchemy expects `postgresql://...`.
+        if _database_url.startswith("postgres://"):
+            _database_url = "postgresql://" + _database_url[len("postgres://") :]
         # Allow DATABASE_URL to be the single source of truth.
         SQLALCHEMY_DATABASE_URI = _database_url
     else:

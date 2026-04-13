@@ -48,3 +48,7 @@ flask_session/
 
 # Uploads
 app/static/uploads/
+app/app/static/uploads/
+
+# Local clones / scratch
+edumind_repo/
