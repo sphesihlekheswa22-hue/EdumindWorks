@@ -33,5 +33,6 @@ COPY . .
 RUN mkdir -p /app/data
 RUN mkdir -p /app/data/uploads
 
-# Render injects the port via the PORT env var. Bind to it.
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 4 wsgi:application"]
+# Render injects the port via the PORT env var. On free instances, keep worker
+# count low to avoid OOM kills. Allow overriding via WEB_CONCURRENCY.
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8080} --workers ${WEB_CONCURRENCY:-1} --timeout 120 wsgi:application"]
