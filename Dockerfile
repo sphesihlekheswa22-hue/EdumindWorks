@@ -33,8 +33,5 @@ COPY . .
 RUN mkdir -p /app/data
 RUN mkdir -p /app/data/uploads
 
-# Expose port
-EXPOSE 8080
-
-# Run the application with gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "4", "wsgi:application"]
+# Render injects the port via the PORT env var. Bind to it.
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 4 wsgi:application"]
