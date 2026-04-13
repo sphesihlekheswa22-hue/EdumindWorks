@@ -2,9 +2,10 @@ import os
 from datetime import timedelta
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-# override=True ensures changes in .env take effect on restart.
-load_dotenv(override=True)
+# Load environment variables from .env file.
+# Do NOT override values already set in the environment (e.g. on Render, or when
+# using `$env:DATABASE_URL=...` in PowerShell).
+load_dotenv(override=False)
 
 
 class Config:
