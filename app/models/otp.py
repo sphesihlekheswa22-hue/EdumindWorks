@@ -1,7 +1,7 @@
 """OTP model for storing one-time passwords."""
 from datetime import timedelta
 from app import db
-from app.utils.app_time import app_now
+from app.utils.app_time import app_now, APP_TZ
 
 
 class OTP(db.Model):
@@ -25,7 +25,13 @@ class OTP(db.Model):
     
     def is_expired(self):
         """Check if OTP has expired."""
-        return app_now() > self.expires_at
+        now = app_now()
+        exp = self.expires_at
+        # Postgres TIMESTAMPTZ columns return timezone-aware datetimes, while
+        # the app uses naive "wall-clock" datetimes. Normalize for comparison.
+        if getattr(exp, "tzinfo", None) is not None:
+            exp = exp.astimezone(APP_TZ).replace(tzinfo=None)
+        return now > exp
     
     def is_valid(self):
         """Check if OTP is valid (not used and not expired)."""
