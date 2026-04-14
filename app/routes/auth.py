@@ -21,6 +21,10 @@ from app.forms.auth_forms import (
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
+def _truthy_env(name: str) -> bool:
+    v = (os.environ.get(name) or "").strip().lower()
+    return v in {"1", "true", "yes", "y", "on"}
+
 
 def redirect_authenticated_user() -> Optional[str]:
     """Redirect already authenticated users to dashboard."""
@@ -39,6 +43,31 @@ def register() -> Union[str, redirect]:
     
     if form.validate_on_submit():
         try:
+            # Optional bypass for demos / when email is not configured.
+            # Set DISABLE_EMAIL_OTP=true to allow direct registration.
+            if _truthy_env("DISABLE_EMAIL_OTP"):
+                user = User(
+                    email=form.email.data,
+                    first_name=form.first_name.data,
+                    last_name=form.last_name.data,
+                    role="student",
+                )
+                user.set_password(form.password.data)
+                db.session.add(user)
+                db.session.flush()
+
+                profile = Student(
+                    user_id=user.id,
+                    student_id=f"PENDING-{user.id}",
+                )
+                db.session.add(profile)
+                user.mark_email_verified()
+                db.session.commit()
+
+                login_user(user, remember=False)
+                flash('Registration successful! Please complete your profile.', 'success')
+                return redirect(url_for('auth.complete_student_profile'))
+
             # Store registration data in session for later use
             from flask import session
             session['registration_data'] = {
