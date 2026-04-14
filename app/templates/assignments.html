@@ -134,7 +134,7 @@
                 {% set submission = item.submission|default(None) %}
                 {% set status = item.status|default('pending') %}
                 {% set graded = item.graded|default(false) %}
-                {% set is_overdue = now_time and assignment.due_date and assignment.due_date < now_time %}
+                {% set is_overdue = now and assignment.due_date and (assignment.due_date|as_app_naive) < now %}
                 {% set due_date = assignment.due_date|default(None) %}
                 
                 <div class="glass-panel rounded-2xl p-5 relative overflow-hidden group hover:scale-[1.01] transition-all duration-300">

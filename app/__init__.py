@@ -9,7 +9,7 @@ from flask_session import Session
 from werkzeug.exceptions import HTTPException
 
 from app.config import config
-from app.utils.app_time import APP_TIMEZONE_LABEL
+from app.utils.app_time import APP_TIMEZONE_LABEL, APP_TZ
 
 # Initialize extensions
 db = SQLAlchemy()
@@ -62,6 +62,19 @@ def create_app(config_name='default'):
         if isinstance(value, str):
             return value
         return value.strftime(format)
+
+    @app.template_filter('as_app_naive')
+    def as_app_naive(value):
+        """Normalize aware timestamps (e.g. Postgres TIMESTAMPTZ) to app-local naive datetime."""
+        if value is None:
+            return None
+        tz = getattr(value, "tzinfo", None)
+        if tz is None:
+            return value
+        try:
+            return value.astimezone(APP_TZ).replace(tzinfo=None)
+        except Exception:
+            return value
     
     @app.template_filter('markdown')
     def markdown_filter(text):

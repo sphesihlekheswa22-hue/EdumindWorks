@@ -107,7 +107,7 @@
                         </span>
                     </div>
 
-                    {% set past_due = item.quiz.due_date and now and (now > item.quiz.due_date) %}
+                    {% set past_due = item.quiz.due_date and now and (now > (item.quiz.due_date|as_app_naive)) %}
                     {% if item.quiz.id in completed_quiz_ids|default({}) %}
                     <a href="{{ url_for('quizzes.quiz_result', result_id=results_by_quiz[item.quiz.id].id) }}"
                        class="soft-button px-4 py-2.5 rounded-xl text-sm font-semibold transition-all inline-flex items-center gap-2 hover:scale-105">
