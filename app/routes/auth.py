@@ -25,6 +25,10 @@ def _truthy_env(name: str) -> bool:
     v = (os.environ.get(name) or "").strip().lower()
     return v in {"1", "true", "yes", "y", "on"}
 
+def _should_show_otp_onscreen() -> bool:
+    # Demo-only: allow showing OTP when email is not configured.
+    return current_app.debug or _truthy_env("SHOW_OTP_ONSCREEN")
+
 
 def redirect_authenticated_user() -> Optional[str]:
     """Redirect already authenticated users to dashboard."""
@@ -85,7 +89,7 @@ def register() -> Union[str, redirect]:
             if sent:
                 db.session.commit()
                 flash('A verification code has been sent to your email address.', 'success')
-            elif current_app.debug:
+            elif _should_show_otp_onscreen():
                 db.session.commit()
                 flash(
                     f'Email is not configured. Development mode — your verification code is: {otp.otp_code}',
@@ -443,8 +447,11 @@ def forgot_password() -> Union[str, redirect]:
                 
                 # Send OTP email
                 from app.services.email_service import send_otp_email
-                if send_otp_email(form.email.data, otp.otp_code, 'password_reset'):
+                sent = send_otp_email(form.email.data, otp.otp_code, 'password_reset')
+                if sent:
                     flash('A verification code has been sent to your email address.', 'success')
+                elif _should_show_otp_onscreen():
+                    flash(f'Email is not configured. Your verification code is: {otp.otp_code}', 'warning')
                 else:
                     flash('Failed to send verification email. Please check your email configuration and try again.', 'danger')
                     return render_template('auth/forgot_password.html', form=form)
