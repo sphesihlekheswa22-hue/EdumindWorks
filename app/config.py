@@ -63,6 +63,11 @@ class Config:
     MAIL_USERNAME = os.environ.get('MAIL_USERNAME', '')
     MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD', '')
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@edumindai.com')
+
+    # Transactional email (recommended for Render; avoids Gmail/Google app passwords)
+    # If RESEND_API_KEY is set, app will send emails via Resend API instead of SMTP.
+    RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+    RESEND_FROM = os.environ.get('RESEND_FROM', '')
     
     # Pagination
     ITEMS_PER_PAGE = 20

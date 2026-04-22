@@ -4,13 +4,18 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from flask import current_app, url_for
 import logging
+import requests
 
 logger = logging.getLogger(__name__)
 
 
 def send_email(to_email, subject, html_body, text_body=None):
     """
-    Send an email using SMTP.
+    Send an email using a configured provider.
+
+    Provider selection:
+    - If `RESEND_API_KEY` is set, send via Resend HTTP API (recommended for Render; no Gmail needed)
+    - Else, fall back to SMTP settings (`MAIL_*`)
     
     Args:
         to_email: Recipient email address
@@ -22,6 +27,15 @@ def send_email(to_email, subject, html_body, text_body=None):
         bool: True if email sent successfully, False otherwise
     """
     try:
+        resend_api_key = (current_app.config.get('RESEND_API_KEY') or '').strip()
+        if resend_api_key:
+            return _send_email_resend(
+                to_email=to_email,
+                subject=subject,
+                html_body=html_body,
+                text_body=text_body,
+            )
+
         # Get email configuration
         mail_server = current_app.config.get('MAIL_SERVER', 'smtp.gmail.com')
         mail_port = current_app.config.get('MAIL_PORT', 587)
@@ -68,6 +82,59 @@ def send_email(to_email, subject, html_body, text_body=None):
         
     except Exception as e:
         logger.error(f"Failed to send email to {to_email}: {str(e)}")
+        return False
+
+
+def _send_email_resend(to_email, subject, html_body, text_body=None):
+    """
+    Send an email using the Resend API.
+
+    Requires:
+    - RESEND_API_KEY
+    - RESEND_FROM (recommended). If missing, falls back to MAIL_DEFAULT_SENDER.
+    """
+    try:
+        api_key = (current_app.config.get('RESEND_API_KEY') or '').strip()
+        if not api_key:
+            return False
+
+        from_email = (
+            (current_app.config.get('RESEND_FROM') or '').strip()
+            or (current_app.config.get('MAIL_DEFAULT_SENDER') or '').strip()
+            or 'noreply@edumindai.com'
+        )
+
+        payload = {
+            "from": from_email,
+            "to": [to_email],
+            "subject": subject,
+            "html": html_body,
+        }
+        if text_body:
+            payload["text"] = text_body
+
+        resp = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=15,
+        )
+
+        if 200 <= resp.status_code < 300:
+            logger.info("Resend email sent successfully to %s", to_email)
+            return True
+
+        logger.error(
+            "Resend email failed (%s): %s",
+            resp.status_code,
+            (resp.text or "").strip()[:2000],
+        )
+        return False
+    except Exception as e:
+        logger.error("Failed to send Resend email to %s: %s", to_email, str(e))
         return False
 
 
