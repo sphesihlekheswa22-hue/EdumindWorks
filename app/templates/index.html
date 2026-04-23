@@ -654,8 +654,8 @@ button:focus-visible {
                     <a href="{{ url_for('auth.login') }}" class="hidden sm:block px-5 py-2.5 text-white/80 hover:text-white font-medium transition-colors">
                         Sign In
                     </a>
-                    <a href="{{ url_for('auth.register') }}" class="btn-premium px-6 py-2.5 rounded-xl text-white font-semibold">
-                        <span>Get Started</span>
+                    <a href="{{ url_for('auth.login') }}" class="btn-premium px-6 py-2.5 rounded-xl text-white font-semibold">
+                        <span>Institutional Login</span>
                     </a>
                 </div>
             </div>
@@ -689,8 +689,8 @@ button:focus-visible {
 
                         <!-- CTA Buttons -->
                         <div class="flex flex-wrap gap-4">
-                            <a href="{{ url_for('auth.register') }}" class="btn-premium px-8 py-4 rounded-2xl text-white font-semibold text-lg group">
-                                <span>Start Learning Free</span>
+                            <a href="{{ url_for('auth.login') }}" class="btn-premium px-8 py-4 rounded-2xl text-white font-semibold text-lg group">
+                                <span>Sign In</span>
                                 <i class="bi bi-arrow-right group-hover:translate-x-1 transition-transform" aria-hidden="true"></i>
                             </a>
                             <button type="button" class="btn-secondary px-8 py-4 rounded-2xl font-medium text-lg" onclick="showDemoModal()">
@@ -953,9 +953,9 @@ button:focus-visible {
                     <i class="bi bi-plus text-4xl text-indigo-400" aria-hidden="true"></i>
                 </div>
                 <h3 class="text-xl font-semibold text-white mb-2">Ready to Start?</h3>
-                <p class="text-white/50 text-sm mb-6">Join thousands of students already learning</p>
-                <a href="{{ url_for('auth.register') }}" class="btn-premium px-6 py-3 rounded-xl text-white font-semibold">
-                    <span>Enroll Now</span>
+                <p class="text-white/50 text-sm mb-6">Use your institutional credentials to access the platform</p>
+                <a href="{{ url_for('auth.login') }}" class="btn-premium px-6 py-3 rounded-xl text-white font-semibold">
+                    <span>Sign In</span>
                 </a>
             </article>
         </div>

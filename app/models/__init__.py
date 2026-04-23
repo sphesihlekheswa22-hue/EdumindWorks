@@ -13,6 +13,7 @@ from app.models.cv_review import CVReview
 from app.models.risk_score import RiskScore
 from app.models.notification import Notification, InterventionMessage
 from app.models.assignment import Assignment, AssignmentSubmission, AssignmentAttachment
+from app.models.staff_profile import StaffProfile
 from app.models.otp import OTP
 
 __all__ = [
@@ -41,5 +42,6 @@ __all__ = [
     'Assignment',
     'AssignmentSubmission',
     'AssignmentAttachment',
+    'StaffProfile',
     'OTP'
 ]

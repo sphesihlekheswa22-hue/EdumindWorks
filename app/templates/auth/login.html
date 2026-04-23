@@ -155,22 +155,22 @@
                 <form method="POST" action="{{ url_for('auth.login') }}" class="space-y-5" id="login-form">
                     {{ form.hidden_tag() }}
 
-                    <!-- Email Field -->
+                    <!-- Institutional ID Field -->
                     <div class="space-y-2">
                         <label class="text-sm font-medium text-slate-300 flex items-center gap-2 ml-1">
-                            <i class="bi bi-envelope text-slate-500"></i>
-                            Email Address
+                            <i class="bi bi-person-badge text-slate-500"></i>
+                            Student/Staff Number
                         </label>
                         <div class="relative group">
-                            {{ form.email(class="w-full px-4 py-3.5 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-white placeholder-slate-500 transition-all duration-300 hover:border-white/20 hover:bg-white/[0.07]", placeholder="name@example.com", autocomplete="email") }}
+                            {{ form.institutional_id(class="w-full px-4 py-3.5 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-white placeholder-slate-500 transition-all duration-300 hover:border-white/20 hover:bg-white/[0.07]", placeholder="e.g. 220900983 or EMP000123", autocomplete="username") }}
                             <div class="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-400 transition-colors">
                                 <i class="bi bi-person"></i>
                             </div>
                         </div>
-                        {% if form.email.errors %}
+                        {% if form.institutional_id.errors %}
                             <div class="flex items-center gap-2 text-red-400 text-sm mt-1.5 animate-fade-in">
                                 <i class="bi bi-exclamation-circle-fill"></i>
-                                {% for error in form.email.errors %}
+                                {% for error in form.institutional_id.errors %}
                                     <span>{{ error }}</span>
                                 {% endfor %}
                             </div>
@@ -268,13 +268,9 @@
                     </div>
                 </div>
 
-                <!-- Register Link -->
                 <div class="mt-8 text-center">
                     <p class="text-slate-400 text-sm">
-                        Don't have an account? 
-                        <a href="{{ url_for('auth.register') }}" class="text-blue-400 hover:text-blue-300 font-semibold transition-colors hover:underline underline-offset-4">
-                            Create free account
-                        </a>
+                        Use your institutional credentials to log in.
                     </p>
                 </div>
             </div>

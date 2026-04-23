@@ -88,7 +88,7 @@
             <div class="mt-6 text-center">
                 <p class="text-slate-400 text-sm">
                     Didn't receive the code? 
-                    <a href="{% if purpose == 'registration' %}{{ url_for('auth.register') }}{% else %}{{ url_for('auth.forgot_password') }}{% endif %}" class="text-blue-400 hover:text-blue-300 font-medium transition-colors hover:underline">
+                    <a href="{{ url_for('auth.forgot_password') }}" class="text-blue-400 hover:text-blue-300 font-medium transition-colors hover:underline">
                         Resend
                     </a>
                 </p>
@@ -97,7 +97,7 @@
             <!-- Back Link -->
             <div class="mt-4 text-center">
                 <p class="text-slate-400 text-sm">
-                    <a href="{% if purpose == 'registration' %}{{ url_for('auth.register') }}{% else %}{{ url_for('auth.forgot_password') }}{% endif %}" class="text-slate-500 hover:text-slate-400 font-medium transition-colors hover:underline">
+                    <a href="{{ url_for('auth.forgot_password') }}" class="text-slate-500 hover:text-slate-400 font-medium transition-colors hover:underline">
                         <i class="bi bi-arrow-left mr-1"></i>
                         Back
                     </a>

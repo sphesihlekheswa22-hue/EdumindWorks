@@ -12,9 +12,9 @@ from http import HTTPStatus
 
 from app import db
 from app.utils.app_time import app_now
-from app.models import User, Student, Lecturer, OTP, Course, Enrollment
+from app.models import User, Student, Lecturer, OTP, Course, Enrollment, StaffProfile
 from app.forms.auth_forms import (
-    RegistrationForm, LoginForm,
+    LoginForm,
     StudentProfileForm, StudentCompleteProfileForm, LecturerProfileForm,
     ForgotPasswordForm, ResetPasswordForm, OTPVerificationForm
 )
@@ -39,114 +39,11 @@ def redirect_authenticated_user() -> Optional[str]:
 
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
-def register() -> Union[str, redirect]:
-    """Handle user registration (auto-verify on registration)."""
-    if redirect_to := redirect_authenticated_user():
-        return redirect_to
-    
-    form = RegistrationForm()
-    
-    if form.validate_on_submit():
-        try:
-            user = User(
-                email=(form.email.data or "").strip().lower(),
-                first_name=(form.first_name.data or "").strip(),
-                last_name=(form.last_name.data or "").strip(),
-                role="student",
-                email_verified=True,
-            )
-            user.set_password(form.password.data)
-            db.session.add(user)
-            db.session.flush()
-
-            profile = Student(
-                user_id=user.id,
-                student_id=f"PENDING-{user.id}",
-            )
-            db.session.add(profile)
-
-            # Keep token fields clean; mark verified right away
-            user.clear_email_verification_token()
-            db.session.commit()
-
-            login_user(user, remember=False)
-            flash('Registration successful! Please complete your profile.', 'success')
-            return redirect(url_for('auth.complete_student_profile'))
-            
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.error(f'Registration error: {str(e)}')
-            flash('Registration failed. Please try again.', 'danger')
-    
-    return render_template('auth/register.html', form=form)
-
-
-@auth_bp.route('/verify-registration-otp', methods=['GET', 'POST'])
-def verify_registration_otp() -> Union[str, redirect]:
-    """Verify OTP for registration."""
-    if redirect_to := redirect_authenticated_user():
-        return redirect_to
-    
-    # Check if registration data exists in session
-    from flask import session
-    if 'registration_data' not in session:
-        flash('Please complete the registration form first.', 'warning')
-        return redirect(url_for('auth.register'))
-    
-    form = OTPVerificationForm()
-    
-    if form.validate_on_submit():
-        try:
-            registration_data = session['registration_data']
-            email = registration_data['email']
-            
-            # Verify OTP
-            otp = OTP.verify_otp(email, form.otp_code.data, 'registration')
-            
-            if not otp:
-                flash('Invalid or expired OTP. Please try again.', 'danger')
-                return render_template('auth/verify_otp.html', form=form, purpose='registration')
-            
-            # Mark OTP as used
-            otp.mark_as_used()
-            
-            # Create user
-            user = User(
-                email=registration_data['email'],
-                first_name=registration_data['first_name'],
-                last_name=registration_data['last_name'],
-                role='student'
-            )
-            user.set_password(registration_data['password'])
-            db.session.add(user)
-            db.session.flush()
-            
-            # Placeholder until complete profile (9-digit number entered there)
-            profile = Student(
-                user_id=user.id,
-                student_id=f"PENDING-{user.id}",
-            )
-            db.session.add(profile)
-            
-            # Mark email as verified since OTP was verified
-            user.mark_email_verified()
-            
-            db.session.commit()
-
-            # Clear session data
-            session.pop('registration_data', None)
-
-            login_user(user, remember=False)
-
-            flash('Registration successful! Please complete your profile.', 'success')
-            return redirect(url_for('auth.complete_student_profile'))
-            
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.error(f'OTP verification error: {str(e)}')
-            flash('Verification failed. Please try again.', 'danger')
-    
-    return render_template('auth/verify_otp.html', form=form, purpose='registration')
+def register() -> redirect:
+    """Public registration is disabled (institutional LMS)."""
+    # Make the registration page unavailable even if someone types the URL directly.
+    from flask import abort
+    abort(404)
 
 
 def _save_profile_photo(student: Student, file_storage) -> Optional[str]:
@@ -309,16 +206,26 @@ def login() -> Union[str, redirect]:
     form = LoginForm()
     
     if form.validate_on_submit():
-        user: Optional[User] = User.query.filter_by(email=form.email.data).first()
-        
+        institutional_id = (form.institutional_id.data or "").strip()
+
+        user: Optional[User] = None
+        # Student login via student number
+        student = Student.query.filter_by(student_id=institutional_id).first()
+        if student and student.user:
+            user = student.user
+        else:
+            # Lecturer login via staff number (employee_id)
+            lecturer = Lecturer.query.filter_by(employee_id=institutional_id).first()
+            if lecturer and lecturer.user:
+                user = lecturer.user
+            else:
+                staff = StaffProfile.query.filter_by(staff_number=institutional_id).first()
+                if staff and staff.user:
+                    user = staff.user
+
         if user and user.check_password(form.password.data):
             if not user.is_active:
                 flash('Your account has been deactivated. Please contact admin.', 'danger')
-                return render_template('auth/login.html', form=form), HTTPStatus.FORBIDDEN
-            
-            # Check if email is verified
-            if not user.email_verified:
-                flash('Please verify your email address before logging in. Check your inbox for the verification email.', 'warning')
                 return render_template('auth/login.html', form=form), HTTPStatus.FORBIDDEN
             
             # Login with remember me
@@ -326,12 +233,12 @@ def login() -> Union[str, redirect]:
             login_user(user, remember=remember)
             
             # Redirect to dashboard
-            next_page = '/dashboard'
+            next_page = url_for('main.dashboard')
             
             flash(f'Welcome back, {user.first_name}!', 'success')
             return redirect(next_page)
         
-        flash('Invalid email or password.', 'danger')
+        flash('Invalid student/staff number or password.', 'danger')
         return render_template('auth/login.html', form=form), HTTPStatus.UNAUTHORIZED
     
     return render_template('auth/login.html', form=form)
@@ -523,54 +430,14 @@ def reset_password(token: str) -> Union[str, redirect]:
 
 @auth_bp.route('/verify-email/<token>', methods=['GET'])
 def verify_email(token: str) -> redirect:
-    """Handle email verification with token."""
-    # Find user with this token
-    user = User.query.filter_by(email_verification_token=token).first()
-    
-    if not user or not user.verify_email_token(token):
-        flash('Invalid or expired verification link. Please request a new one.', 'danger')
-        return redirect(url_for('auth.login'))
-    
-    try:
-        # Mark email as verified
-        user.mark_email_verified()
-        db.session.commit()
-        
-        flash('Your email has been verified successfully! You can now login.', 'success')
-        return redirect(url_for('auth.login'))
-        
-    except Exception as e:
-        db.session.rollback()
-        current_app.logger.error(f'Email verification error: {str(e)}')
-        flash('An error occurred. Please try again.', 'danger')
-        return redirect(url_for('auth.login'))
+    """Email verification is not used in institutional LMS mode."""
+    flash('Email verification is not required. Use your institutional credentials to log in.', 'info')
+    return redirect(url_for('auth.login'))
 
 
 @auth_bp.route('/resend-verification', methods=['GET', 'POST'])
 @login_required
 def resend_verification() -> Union[str, redirect]:
-    """Resend email verification link."""
-    # Check if already verified
-    if current_user.email_verified:
-        flash('Your email is already verified.', 'info')
-        return redirect(url_for('main.dashboard'))
-    
-    if request.method == 'POST':
-        try:
-            from app.services.email_service import send_verification_email
-            
-            # Send verification email
-            if send_verification_email(current_user):
-                db.session.commit()
-                flash('A verification email has been sent. Please check your inbox.', 'success')
-            else:
-                flash('Failed to send verification email. Please try again later.', 'danger')
-            
-            return redirect(url_for('main.dashboard'))
-            
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.error(f'Resend verification error: {str(e)}')
-            flash('An error occurred. Please try again.', 'danger')
-    
-    return render_template('auth/resend_verification.html')
+    """Email verification is not used in institutional LMS mode."""
+    flash('Email verification is not required in this system.', 'info')
+    return redirect(url_for('main.dashboard'))

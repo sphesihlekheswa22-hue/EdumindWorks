@@ -3,27 +3,12 @@ from flask_wtf.file import FileField, FileAllowed
 from flask_login import current_user
 from wtforms import StringField, PasswordField, SubmitField, SelectField, DateField, TextAreaField, IntegerField
 from wtforms.validators import DataRequired, Email, EqualTo, Length, Optional, ValidationError, Regexp
-from app.models import User, Student
-
-
-class RegistrationForm(FlaskForm):
-    """User registration form."""
-    email = StringField('Email', validators=[DataRequired(), Email()])
-    first_name = StringField('First Name', validators=[DataRequired(), Length(min=2, max=50)])
-    last_name = StringField('Last Name', validators=[DataRequired(), Length(min=2, max=50)])
-    password = PasswordField('Password', validators=[DataRequired(), Length(min=6)])
-    confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
-    submit = SubmitField('Register')
-    
-    def validate_email(self, email):
-        user = User.query.filter_by(email=email.data).first()
-        if user:
-            raise ValidationError('Email already registered. Please login.')
+from app.models import Student
 
 
 class LoginForm(FlaskForm):
     """User login form."""
-    email = StringField('Email', validators=[DataRequired(), Email()])
+    institutional_id = StringField('Student/Staff Number', validators=[DataRequired(), Length(min=4, max=20)])
     password = PasswordField('Password', validators=[DataRequired()])
     remember = SelectField('Remember Me', choices=[
         ('yes', 'Yes'),

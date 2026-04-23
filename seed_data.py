@@ -21,6 +21,7 @@ from app.models import (
     ChatSession, ChatMessage, CVReview, RiskScore,
     Notification, InterventionMessage,
     Assignment, AssignmentAttachment, AssignmentSubmission,
+    StaffProfile,
     OTP,
 )
 
@@ -127,6 +128,7 @@ def clear_all_data():
     InterventionMessage.query.delete()
     StudentModuleProgress.query.delete()
     OTP.query.delete()
+    StaffProfile.query.delete()
     AssignmentSubmission.query.delete()
     AssignmentAttachment.query.delete()
     Assignment.query.delete()
@@ -151,6 +153,12 @@ def seed_users():
     """Create users for admin, lecturers, career advisor, and students."""
     print("Seeding Users...")
     
+    # Staff numbers for non-lecturer staff (admin/career advisor)
+    staff_numbers = {
+        "admin@edumind.com": "STAFF0001",
+        "career@edumind.com": "STAFF0002",
+    }
+
     users_data = [
         # Admin
         {'email': 'admin@edumind.com', 'first_name': 'System', 'last_name': 'Admin', 'role': 'admin', 'password': 'admin123', 'email_verified': True},
@@ -188,6 +196,15 @@ def seed_users():
         users.append(user)
     
     db.session.commit()
+
+    # Create StaffProfile rows for non-lecturer staff so they can log in via staff number.
+    for u in users:
+        if u.role in ("admin", "career_advisor"):
+            sn = staff_numbers.get(u.email)
+            if sn:
+                db.session.add(StaffProfile(user_id=u.id, staff_number=sn))
+    db.session.commit()
+
     print(f"  Created {len(users)} users")
     return users
 

@@ -1,6 +1,5 @@
 # Forms module
 from app.forms.auth_forms import (
-    RegistrationForm,
     LoginForm,
     StudentProfileForm,
     StudentCompleteProfileForm,
@@ -11,7 +10,6 @@ from app.forms.auth_forms import (
 )
 
 __all__ = [
-    'RegistrationForm',
     'LoginForm',
     'StudentProfileForm',
     'StudentCompleteProfileForm',

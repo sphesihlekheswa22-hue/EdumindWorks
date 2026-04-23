@@ -25,6 +25,11 @@ def iter_model_classes():
             yield cls
 
 
+def _assert(condition: bool, msg: str, errors: list[str]) -> None:
+    if not condition:
+        errors.append(msg)
+
+
 def main() -> int:
     app = create_app("development")
     errors = []
@@ -65,6 +70,23 @@ def main() -> int:
 
                 if nulls:
                     errors.append(f"{table_name}.{col.key}: {nulls} NULL(s) in non-nullable column")
+
+        # Relationship sanity checks (institutional LMS expectations)
+        from app.models import Student, Enrollment, Lecturer, StaffProfile, User
+        from app.models.lecturer import LecturerModule
+
+        _assert(Student.query.count() > 0, "students: expected at least 1 student", errors)
+        _assert(Enrollment.query.count() > 0, "enrollments: expected at least 1 enrollment", errors)
+        _assert(Lecturer.query.count() > 0, "lecturers: expected at least 1 lecturer", errors)
+        _assert(LecturerModule.query.count() > 0, "lecturer_modules: expected at least 1 lecturer-module assignment", errors)
+
+        # Admin/career advisor must have staff profiles for staff-number login
+        admin_count = User.query.filter_by(role="admin").count()
+        career_count = User.query.filter_by(role="career_advisor").count()
+        staff_profiles = StaffProfile.query.count()
+        _assert(admin_count > 0, "users: expected at least 1 admin user", errors)
+        _assert(career_count > 0, "users: expected at least 1 career_advisor user", errors)
+        _assert(staff_profiles >= (admin_count + career_count), "staff_profiles: expected staff profiles for all non-lecturer staff", errors)
 
     if errors:
         print("SEED AUDIT FAILED")
