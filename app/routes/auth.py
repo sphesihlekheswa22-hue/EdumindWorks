@@ -40,7 +40,7 @@ def redirect_authenticated_user() -> Optional[str]:
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register() -> Union[str, redirect]:
-    """Handle user registration (create account immediately; verify via email link)."""
+    """Handle user registration (auto-verify on registration)."""
     if redirect_to := redirect_authenticated_user():
         return redirect_to
     
@@ -48,14 +48,12 @@ def register() -> Union[str, redirect]:
     
     if form.validate_on_submit():
         try:
-            from app.services.email_service import send_verification_email
-
             user = User(
                 email=(form.email.data or "").strip().lower(),
                 first_name=(form.first_name.data or "").strip(),
                 last_name=(form.last_name.data or "").strip(),
                 role="student",
-                email_verified=False,
+                email_verified=True,
             )
             user.set_password(form.password.data)
             db.session.add(user)
@@ -67,22 +65,13 @@ def register() -> Union[str, redirect]:
             )
             db.session.add(profile)
 
-            # Persist token + user before sending email
-            user.generate_email_verification_token()
+            # Keep token fields clean; mark verified right away
+            user.clear_email_verification_token()
             db.session.commit()
 
-            sent = send_verification_email(user)
-            if sent:
-                db.session.commit()
-                flash('Registration successful! Please check your email and click the verification link before logging in.', 'success')
-            else:
-                flash(
-                    'Registration successful, but we could not send the verification email. '
-                    'Please try again later or use "Resend verification" after logging in.',
-                    'warning',
-                )
-
-            return redirect(url_for('auth.login'))
+            login_user(user, remember=False)
+            flash('Registration successful! Please complete your profile.', 'success')
+            return redirect(url_for('auth.complete_student_profile'))
             
         except Exception as e:
             db.session.rollback()
