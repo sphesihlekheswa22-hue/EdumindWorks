@@ -10,7 +10,8 @@ from app.utils.app_time import app_now
 from http import HTTPStatus
 
 from app import db
-from app.models import User, Student, Lecturer, Course, Enrollment
+from sqlalchemy.orm import joinedload
+from app.models import User, Student, Lecturer, Course, Enrollment, StaffProfile
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -129,7 +130,12 @@ def users() -> str:
     if role and role in ['student', 'lecturer', 'admin', 'career_advisor']:
         query = query.filter_by(role=role)
     
-    users_list: List[User] = query.all()
+    # Load related institutional IDs for display in the admin user list.
+    users_list: List[User] = query.options(
+        joinedload(User.student),
+        joinedload(User.lecturer),
+        joinedload(User.staff_profile),
+    ).all()
     
     # Efficiently calculate all stats in one go
     stats = {
