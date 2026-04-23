@@ -26,8 +26,9 @@ def _truthy_env(name: str) -> bool:
     return v in {"1", "true", "yes", "y", "on"}
 
 def _should_show_otp_onscreen() -> bool:
-    # Demo-only: allow showing OTP when email is not configured.
-    return current_app.debug or _truthy_env("SHOW_OTP_ONSCREEN")
+    # Security: never show OTP by default (including in debug).
+    # If you *really* want this for local demos, set SHOW_OTP_ONSCREEN=true explicitly.
+    return _truthy_env("SHOW_OTP_ONSCREEN")
 
 
 def redirect_authenticated_user() -> Optional[str]:
@@ -39,7 +40,7 @@ def redirect_authenticated_user() -> Optional[str]:
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register() -> Union[str, redirect]:
-    """Handle user registration with OTP verification."""
+    """Handle user registration (create account immediately; verify via email link)."""
     if redirect_to := redirect_authenticated_user():
         return redirect_to
     
@@ -47,63 +48,41 @@ def register() -> Union[str, redirect]:
     
     if form.validate_on_submit():
         try:
-            # Optional bypass for demos / when email is not configured.
-            # Set DISABLE_EMAIL_OTP=true to allow direct registration.
-            if _truthy_env("DISABLE_EMAIL_OTP"):
-                user = User(
-                    email=form.email.data,
-                    first_name=form.first_name.data,
-                    last_name=form.last_name.data,
-                    role="student",
-                )
-                user.set_password(form.password.data)
-                db.session.add(user)
-                db.session.flush()
+            from app.services.email_service import send_verification_email
 
-                profile = Student(
-                    user_id=user.id,
-                    student_id=f"PENDING-{user.id}",
-                )
-                db.session.add(profile)
-                user.mark_email_verified()
-                db.session.commit()
+            user = User(
+                email=(form.email.data or "").strip().lower(),
+                first_name=(form.first_name.data or "").strip(),
+                last_name=(form.last_name.data or "").strip(),
+                role="student",
+                email_verified=False,
+            )
+            user.set_password(form.password.data)
+            db.session.add(user)
+            db.session.flush()
 
-                login_user(user, remember=False)
-                flash('Registration successful! Please complete your profile.', 'success')
-                return redirect(url_for('auth.complete_student_profile'))
+            profile = Student(
+                user_id=user.id,
+                student_id=f"PENDING-{user.id}",
+            )
+            db.session.add(profile)
 
-            # Store registration data in session for later use
-            from flask import session
-            session['registration_data'] = {
-                'email': form.email.data,
-                'first_name': form.first_name.data,
-                'last_name': form.last_name.data,
-                'password': form.password.data
-            }
-            
-            # Generate OTP (do not commit until email succeeds or dev fallback applies)
-            otp = OTP.create_otp(email=form.email.data, purpose='registration')
+            # Persist token + user before sending email
+            user.generate_email_verification_token()
+            db.session.commit()
 
-            from app.services.email_service import send_otp_email
-            sent = send_otp_email(form.email.data, otp.otp_code, 'registration')
+            sent = send_verification_email(user)
             if sent:
                 db.session.commit()
-                flash('A verification code has been sent to your email address.', 'success')
-            elif _should_show_otp_onscreen():
-                db.session.commit()
+                flash('Registration successful! Please check your email and click the verification link before logging in.', 'success')
+            else:
                 flash(
-                    f'Email is not configured. Development mode — your verification code is: {otp.otp_code}',
+                    'Registration successful, but we could not send the verification email. '
+                    'Please try again later or use "Resend verification" after logging in.',
                     'warning',
                 )
-            else:
-                db.session.rollback()
-                flash(
-                    'Failed to send verification email. Please check your email configuration and try again.',
-                    'danger',
-                )
-                return render_template('auth/register.html', form=form)
 
-            return redirect(url_for('auth.verify_registration_otp'))
+            return redirect(url_for('auth.login'))
             
         except Exception as e:
             db.session.rollback()
@@ -450,8 +429,6 @@ def forgot_password() -> Union[str, redirect]:
                 sent = send_otp_email(form.email.data, otp.otp_code, 'password_reset')
                 if sent:
                     flash('A verification code has been sent to your email address.', 'success')
-                elif _should_show_otp_onscreen():
-                    flash(f'Email is not configured. Your verification code is: {otp.otp_code}', 'warning')
                 else:
                     flash('Failed to send verification email. Please check your email configuration and try again.', 'danger')
                     return render_template('auth/forgot_password.html', form=form)

@@ -84,13 +84,14 @@ def users() -> str:
             return redirect(url_for('admin.users'))
 
         try:
+            from app.services.email_service import send_verification_email
             user = User(
                 first_name=first_name,
                 last_name=last_name,
                 email=email,
                 role=role,
                 is_active=True,
-                email_verified=True
+                email_verified=False
             )
             user.set_password(password)
             db.session.add(user)
@@ -101,8 +102,20 @@ def users() -> str:
             elif role == 'lecturer':
                 db.session.add(Lecturer(user_id=user.id, employee_id=f"EMP{user.id:06d}"))
 
+            # Generate token before commit so it persists even if email fails
+            user.generate_email_verification_token()
             db.session.commit()
-            flash(f'User "{user.full_name}" created successfully.', 'success')
+
+            # Best-effort email send (admin can use "resend verification" later)
+            if send_verification_email(user):
+                db.session.commit()
+                flash(f'User "{user.full_name}" created. Verification email sent.', 'success')
+            else:
+                flash(
+                    f'User "{user.full_name}" created, but verification email could not be sent. '
+                    f'Check Outlook/SMTP settings, then ask the user to use "Resend verification".',
+                    'warning',
+                )
         except Exception as e:
             db.session.rollback()
             current_app.logger.error(f'Error creating admin user {email}: {str(e)}')
@@ -202,12 +215,31 @@ def edit_user(user_id: int) -> str:
     """Edit user profile."""
     user: User = User.query.get_or_404(user_id)
     if request.method == 'POST':
+        from app.services.email_service import send_verification_email
+
+        prev_email = (user.email or "").strip().lower()
+
         user.full_name = request.form.get('full_name')
-        user.email = request.form.get('email')
+        user.email = (request.form.get('email') or '').strip().lower()
         user.role = request.form.get('role')
         user.is_active = 'is_active' in request.form
+
+        # If admin changes email, require re-verification
+        if user.email and user.email != prev_email:
+            user.email_verified = False
+            user.generate_email_verification_token()
+
         db.session.commit()
-        flash('User updated successfully!', 'success')
+
+        if user.email and user.email != prev_email and not user.email_verified:
+            if send_verification_email(user):
+                db.session.commit()
+                flash('User updated. Verification email sent to the new address.', 'success')
+            else:
+                flash('User updated, but verification email could not be sent. Check SMTP settings.', 'warning')
+        else:
+            flash('User updated successfully!', 'success')
+
         return redirect(url_for('admin.users'))
     return render_template('user_edit.html', user=user)
 

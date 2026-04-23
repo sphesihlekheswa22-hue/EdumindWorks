@@ -15,10 +15,13 @@ from app import create_app, db, bcrypt
 from app.utils.app_time import app_now
 from app.models import (
     User, Student, Lecturer, Course, Module, Enrollment,
+    StudentModuleProgress,
     CourseMaterial, Quiz, QuizQuestion, QuizResult,
     Attendance, Mark, StudyPlan, StudyPlanItem,
     ChatSession, ChatMessage, CVReview, RiskScore,
+    Notification, InterventionMessage,
     Assignment, AssignmentAttachment, AssignmentSubmission,
+    OTP,
 )
 
 def _static_dir_candidates() -> list[str]:
@@ -120,6 +123,10 @@ def clear_all_data():
     StudyPlan.query.delete()
     RiskScore.query.delete()
     CVReview.query.delete()
+    Notification.query.delete()
+    InterventionMessage.query.delete()
+    StudentModuleProgress.query.delete()
+    OTP.query.delete()
     AssignmentSubmission.query.delete()
     AssignmentAttachment.query.delete()
     Assignment.query.delete()
@@ -588,6 +595,145 @@ def seed_assignment_submissions(assignments, students):
     print(f"  Created {len(submissions)} assignment submissions")
     return submissions
 
+
+def seed_student_module_progress(enrollments, modules):
+    """Create module-level progress records for enrolled students (covers student_module_progress table)."""
+    print("Seeding Student Module Progress...")
+
+    progress_rows = []
+
+    # Map course -> modules to avoid repeated filtering
+    modules_by_course = {}
+    for m in modules:
+        modules_by_course.setdefault(m.course_id, []).append(m)
+
+    for enr in enrollments:
+        course_modules = modules_by_course.get(enr.course_id, [])
+        for mod in course_modules:
+            pct = random.choice([0, 10, 25, 50, 75, 100])
+            status = "not_started" if pct == 0 else ("completed" if pct >= 100 else "in_progress")
+            row = StudentModuleProgress(
+                student_id=enr.student_id,
+                module_id=mod.id,
+                enrollment_id=enr.id,
+                completion_status=status,
+                completion_percentage=pct,
+                materials_viewed=random.randint(0, 3),
+                quizzes_completed=random.randint(0, 2),
+                assignments_submitted=random.randint(0, 2),
+                attendance_sessions=random.randint(0, 6),
+                last_accessed_at=app_now() - timedelta(days=random.randint(0, 14)),
+            )
+            if pct > 0:
+                row.started_at = app_now() - timedelta(days=random.randint(1, 30))
+            if pct >= 100:
+                row.completed_at = app_now() - timedelta(days=random.randint(0, 10))
+            db.session.add(row)
+            progress_rows.append(row)
+
+    db.session.commit()
+    print(f"  Created {len(progress_rows)} student module progress records")
+    return progress_rows
+
+
+def seed_interventions_and_notifications(users, students, lecturers, courses, materials, quizzes, assignments, cv_reviews):
+    """Seed intervention messages + notifications so tables are never empty."""
+    print("Seeding Notifications & Interventions...")
+
+    notifications = []
+    interventions = []
+
+    # Pick admin as default sender where needed
+    admin_user = next((u for u in users if getattr(u, "role", None) == "admin"), users[0] if users else None)
+
+    # Create a few intervention messages (lecturer -> student)
+    if lecturers and students:
+        for i in range(min(10, len(students))):
+            lec = random.choice(lecturers)
+            stu = students[i]
+            course = random.choice(courses) if courses else None
+            msg = InterventionMessage(
+                lecturer_id=lec.id,
+                student_id=stu.id,
+                course_id=course.id if course else None,
+                subject="Check-in: How can I help?",
+                content="I noticed you may benefit from extra support. Please book a consultation or reply with your questions.",
+                template_used="support_checkin",
+                risk_level_at_send=random.choice(["low", "medium", "high"]),
+                recommended_actions="Attend tutorials; review lecture notes; attempt practice questions.",
+            )
+            db.session.add(msg)
+            interventions.append(msg)
+
+    # Notifications: give each user 1-3 notifications
+    for u in users:
+        for _ in range(random.randint(1, 3)):
+            ntype = random.choice([
+                "course_update", "material_published", "quiz_published", "assignment_posted", "cv_reviewed"
+            ])
+            title = {
+                "course_update": "Course update",
+                "material_published": "New material published",
+                "quiz_published": "New quiz available",
+                "assignment_posted": "New assignment posted",
+                "cv_reviewed": "CV review update",
+            }.get(ntype, "Notification")
+
+            action_url = None
+            entity_type = None
+            entity_id = None
+
+            if ntype == "material_published" and materials:
+                m = random.choice(materials)
+                entity_type, entity_id = "material", m.id
+                action_url = "/materials/"
+            elif ntype == "quiz_published" and quizzes:
+                q = random.choice(quizzes)
+                entity_type, entity_id = "quiz", q.id
+                action_url = "/quizzes/"
+            elif ntype == "assignment_posted" and assignments:
+                a = random.choice(assignments)
+                entity_type, entity_id = "assignment", a.id
+                action_url = "/assignments/"
+            elif ntype == "cv_reviewed" and cv_reviews:
+                r = random.choice(cv_reviews)
+                entity_type, entity_id = "cv_review", r.id
+                action_url = "/career/cv-review"
+
+            notif = Notification(
+                recipient_id=u.id,
+                sender_id=admin_user.id if admin_user else None,
+                type=ntype,
+                title=title,
+                message="This is a demo notification seeded for testing the UI.",
+                priority=random.choice(["low", "normal", "high"]),
+                action_url=action_url,
+                action_text="Open" if action_url else None,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                is_read=random.random() > 0.6,
+            )
+            db.session.add(notif)
+            notifications.append(notif)
+
+    db.session.commit()
+    print(f"  Created {len(interventions)} intervention messages")
+    print(f"  Created {len(notifications)} notifications")
+    return notifications, interventions
+
+
+def seed_otps(users):
+    """Seed a few OTP rows (purpose=password_reset) for testing; not used in normal flow."""
+    print("Seeding OTPs...")
+    otps = []
+    emails = [u.email for u in users if getattr(u, "email", None)]
+    for email in emails[: min(5, len(emails))]:
+        otp = OTP.create_otp(email=email, purpose="password_reset", expires_in_minutes=30)
+        otps.append(otp)
+    db.session.commit()
+    print(f"  Created {len(otps)} OTPs")
+    return otps
+
 def seed_quiz_questions(quizzes):
     """Create quiz questions (every quiz gets at least five; MC uses five options)."""
     print("Seeding Quiz Questions...")
@@ -997,6 +1143,7 @@ def main():
         quizzes = seed_quizzes(courses, modules, users)
         assignments = seed_assignments(courses, modules, users)
         assignment_submissions = seed_assignment_submissions(assignments, students)
+        module_progress = seed_student_module_progress(enrollments, modules)
         quiz_questions = seed_quiz_questions(quizzes)
         quiz_results = seed_quiz_results(quizzes, students)  # Disabled
         attendance_records = seed_attendance(courses, modules, students, users)  # Disabled
@@ -1007,6 +1154,17 @@ def main():
         chat_messages = seed_chat_messages(chat_sessions)
         cv_reviews = seed_cv_reviews(students)
         risk_scores = seed_risk_scores(students, courses)
+        otps = seed_otps(users)
+        notifications, interventions = seed_interventions_and_notifications(
+            users=users,
+            students=students,
+            lecturers=lecturers,
+            courses=courses,
+            materials=materials,
+            quizzes=quizzes,
+            assignments=assignments,
+            cv_reviews=cv_reviews,
+        )
         
         print("\n" + "=" * 50)
         print("Database seeding completed successfully!")
@@ -1024,6 +1182,7 @@ def main():
         print(f"  Quizzes: {len(quizzes)}")
         print(f"  Assignments: {len(assignments)}")
         print(f"  Assignment Submissions: {len(assignment_submissions)}")
+        print(f"  Student Module Progress: {len(module_progress)}")
         print(f"  Quiz Questions: {len(quiz_questions)}")
         print(f"  Quiz Results: {len(quiz_results)} (disabled - requires enrollments)")
         print(f"  Attendance Records: {len(attendance_records)} (disabled - requires enrollments)")
@@ -1034,6 +1193,9 @@ def main():
         print(f"  Chat Messages: {len(chat_messages)}")
         print(f"  CV Reviews: {len(cv_reviews)}")
         print(f"  Risk Scores: {len(risk_scores)}")
+        print(f"  OTPs: {len(otps)}")
+        print(f"  Notifications: {len(notifications)}")
+        print(f"  Intervention Messages: {len(interventions)}")
 
 if __name__ == '__main__':
     main()

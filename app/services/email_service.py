@@ -43,7 +43,7 @@ def send_email(to_email, subject, html_body, text_body=None):
         mail_use_ssl = current_app.config.get('MAIL_USE_SSL', False)
         mail_username = current_app.config.get('MAIL_USERNAME', '')
         mail_password = current_app.config.get('MAIL_PASSWORD', '')
-        mail_default_sender = current_app.config.get('MAIL_DEFAULT_SENDER', 'noreply@edumindai.com')
+        mail_default_sender = (current_app.config.get('MAIL_DEFAULT_SENDER', '') or '').strip() or mail_username or 'noreply@edumindai.com'
         
         # Check if email is configured
         if not mail_username or not mail_password:
@@ -68,12 +68,24 @@ def send_email(to_email, subject, html_body, text_body=None):
         # Send email
         if mail_use_ssl:
             with smtplib.SMTP_SSL(mail_server, mail_port) as server:
+                try:
+                    server.ehlo()
+                except Exception:
+                    pass
                 server.login(mail_username, mail_password)
                 server.send_message(msg)
         else:
             with smtplib.SMTP(mail_server, mail_port) as server:
                 if mail_use_tls:
+                    try:
+                        server.ehlo()
+                    except Exception:
+                        pass
                     server.starttls()
+                    try:
+                        server.ehlo()
+                    except Exception:
+                        pass
                 server.login(mail_username, mail_password)
                 server.send_message(msg)
         
