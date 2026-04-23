@@ -79,22 +79,20 @@ def index() -> str:
             user_id=current_user.id
         ).first_or_404()
         
-        # Get enrolled course IDs
+        # Students can only view their active enrolled course(s) (institutional LMS).
         enrollments: List[Enrollment] = Enrollment.query.filter_by(
-            student_id=student.id
+            student_id=student.id,
+            status='active',
         ).all()
-        
-        enrolled_ids: List[int] = [
-            e.course_id for e in enrollments if e.status == 'active'
-        ]
-        
-        # All active courses for browsing
-        all_courses: List[Course] = Course.query.filter_by(
-            is_active=True
-        ).order_by(Course.name).all()
+
+        enrolled_ids: List[int] = [e.course_id for e in enrollments]
+
+        courses_q: List[Course] = []
+        if enrolled_ids:
+            courses_q = Course.query.filter(Course.id.in_(enrolled_ids)).order_by(Course.name).all()
         
         context.update({
-            'courses': all_courses,
+            'courses': courses_q,
             'enrolled_course_ids': enrolled_ids,
             'enrollments': {e.course_id: e for e in enrollments}
         })
@@ -369,8 +367,8 @@ def _create_module_progress_records(enrollment: Enrollment):
 @login_required
 def unenroll(course_id: int) -> redirect:
     """Unenroll student from course."""
-    if current_user.role != 'student':
-        abort(HTTPStatus.FORBIDDEN)
+    # Institutional LMS: students cannot cancel/drop enrollment themselves.
+    abort(HTTPStatus.FORBIDDEN)
     
     student: Student = Student.query.filter_by(
         user_id=current_user.id

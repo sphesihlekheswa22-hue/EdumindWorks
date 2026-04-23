@@ -483,7 +483,7 @@ def seed_materials(courses, modules, users):
     return materials
 
 def seed_quizzes(courses, modules, users):
-    """Create quizzes."""
+    """Create quizzes (at least 5 per module)."""
     print("Seeding Quizzes...")
     
     quizzes = []
@@ -494,21 +494,18 @@ def seed_quizzes(courses, modules, users):
         'Weekly Quiz 2',
         'Practice Quiz'
     ]
-    
-    for course in courses:
-        # Get modules for this course
-        course_modules = [m for m in modules if m.course_id == course.id]
-        if not course_modules:
-            continue
-            
-        for i, title in enumerate(quiz_titles):  # all quiz templates per course
-            # Pick a random module from this course
-            target_module = random.choice(course_modules)
-            
+
+    # 5 quizzes per module
+    for module in modules:
+        course = next((c for c in courses if c.id == module.course_id), None)
+        course_code = course.code if course else "COURSE"
+        course_name = course.name if course else "Course"
+
+        for i, title in enumerate(quiz_titles):
             quiz = Quiz(
-                module_id=target_module.id,
-                title=f'{course.code} - {title}',
-                description=f'{title} for {course.name}',
+                module_id=module.id,
+                title=f'{course_code} - {module.title} - {title}',
+                description=f'{title} for {course_name} ({module.title})',
                 created_by=users[0].id,
                 time_limit=1,  # fallback when time_limit_seconds is not used elsewhere
                 time_limit_seconds=40,
@@ -526,7 +523,7 @@ def seed_quizzes(courses, modules, users):
 
 
 def seed_assignments(courses, modules, users):
-    """Create module-based assignments with downloadable spec attachments."""
+    """Create module-based assignments (at least 5 per module) with downloadable spec attachments."""
     print("Seeding Assignments...")
 
     assignments = []
@@ -535,33 +532,37 @@ def seed_assignments(courses, modules, users):
     lecturer_like_user_id = users[0].id if users else None  # admin as uploader/marker when needed
     uploads_root = _primary_uploads_dir()
 
-    for course in courses:
-        course_modules = [m for m in modules if m.course_id == course.id]
-        if not course_modules:
-            continue
+    assignment_titles = [
+        "Assignment 1",
+        "Assignment 2",
+        "Assignment 3",
+        "Assignment 4",
+        "Assignment 5",
+    ]
 
-        # 1-2 assignments per course (attached to random modules)
-        for i in range(random.randint(1, 2)):
-            target_module = random.choice(course_modules)
+    for module in modules:
+        course = next((c for c in courses if c.id == module.course_id), None)
+        course_code = course.code if course else "COURSE"
+        course_name = course.name if course else "Course"
+
+        for i, title in enumerate(assignment_titles):
             assignment = Assignment(
-                module_id=target_module.id,
-                title=f"{course.code} - Assignment {i+1}",
-                description=f"Submit your work for {course.name}.",
+                module_id=module.id,
+                title=f"{course_code} - {module.title} - {title}",
+                description=f"Submit your work for {course_name} ({module.title}).",
                 due_date=app_now() + timedelta(days=30 + i * 7),
                 total_marks=random.choice([50, 75, 100]),
             )
             db.session.add(assignment)
             db.session.flush()  # ensure assignment.id exists for file paths
 
-            # 1-3 spec files per assignment (tiny PDFs so downloads work)
-            for j in range(random.randint(1, 3)):
-                filename = f"{course.code}_assignment_{i+1}_spec_{j+1}.pdf"
+            # Always attach 2 spec files (real PDFs) to avoid missing file errors
+            for j in range(2):
+                filename = f"{course_code}_module_{module.id}_assignment_{i+1}_spec_{j+1}.pdf"
                 rel = f"assignments/specs/{assignment.id}/{filename}"
                 _write_bytes_under_uploads(rel, _tiny_pdf_bytes(f"{assignment.title} spec {j+1}"))
 
-                # Store an absolute path (matches assignments routes send_file expectations)
                 abs_path = os.path.join(uploads_root, rel.replace("/", os.sep))
-
                 db.session.add(
                     AssignmentAttachment(
                         assignment_id=assignment.id,

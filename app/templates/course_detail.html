@@ -130,13 +130,15 @@
                                 </a>
                             </div>
                             
-                            <form method="POST" action="{{ url_for('courses.unenroll', course_id=course.id) }}" class="mt-4 pt-4 border-t border-white/10">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                <button type="submit" onclick="return confirm('Are you sure you want to unenroll? Your progress will be saved.')" class="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-all text-sm font-medium">
-                                    <i class="bi bi-box-arrow-right"></i>
-                                    Unenroll from Course
-                                </button>
-                            </form>
+                            <div class="mt-4 pt-4 border-t border-white/10">
+                                <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-900/35 border border-white/10 text-slate-400">
+                                    <i class="bi bi-info-circle-fill text-slate-500 mt-0.5"></i>
+                                    <div>
+                                        <p class="text-sm font-semibold text-slate-200">Enrollment managed by institution</p>
+                                        <p class="text-xs text-slate-500 mt-0.5">To change your course, contact an administrator.</p>
+                                    </div>
+                                </div>
+                            </div>
                         {% else %}
                             {% if active_enrolled_course %}
                                 {# Student already enrolled in another course - show restriction message #}
@@ -166,14 +168,13 @@
                                         <i class="bi bi-arrow-left"></i>
                                         Go to My Course
                                     </a>
-                                    
-                                    <form method="POST" action="{{ url_for('courses.unenroll', course_id=active_enrolled_course.id) }}">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                        <button type="submit" onclick="return confirm('Are you sure you want to cancel your enrollment in {{ active_enrolled_course.name }}? You can then enroll in this course.')" class="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-all text-sm font-medium">
-                                            <i class="bi bi-x-circle"></i>
-                                            Cancel Current Enrollment
-                                        </button>
-                                    </form>
+                                    <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-900/35 border border-white/10 text-slate-400">
+                                        <i class="bi bi-info-circle-fill text-slate-500 mt-0.5"></i>
+                                        <div>
+                                            <p class="text-sm font-semibold text-slate-200">Enrollment changes are restricted</p>
+                                            <p class="text-xs text-slate-500 mt-0.5">Contact an administrator to change your course.</p>
+                                        </div>
+                                    </div>
                                 </div>
                             {% else %}
                                 {# No active enrollment - allow enrollment #}
