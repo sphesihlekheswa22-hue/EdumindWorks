@@ -144,7 +144,7 @@
           <i class="bi bi-arrow-right group-hover:translate-x-1 transition-transform"></i>
         </a>
         {% elif quiz.is_published %}
-        {% set past_due = quiz.due_date and now and (now > quiz.due_date) %}
+        {% set past_due = quiz.due_date and now and ((now|as_app_naive) > (quiz.due_date|as_app_naive)) %}
         <span class="text-sm {% if past_due %}text-amber-400{% else %}text-slate-500{% endif %}">
           Due: {{ quiz.due_date.strftime('%b %d, %H:%M') if quiz.due_date else 'No deadline' }}
           {% if past_due %}<span class="block text-xs mt-0.5">Past due — view only</span>{% endif %}

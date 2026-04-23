@@ -109,7 +109,7 @@
                                     {% endif %}
                                     {% if item.due_date %}
                                     <span class="inline-flex items-center gap-1 text-xs 
-                                        {% if item.due_date < now %}text-red-400{% else %}text-slate-500{% endif %}">
+                                        {% if (item.due_date|as_app_naive) < (now|as_app_naive) %}text-red-400{% else %}text-slate-500{% endif %}">
                                         <i class="bi bi-calendar"></i>
                                         Due {{ item.due_date.strftime('%b %d') }}
                                     </span>

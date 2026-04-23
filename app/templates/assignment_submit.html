@@ -21,8 +21,8 @@
                 Course: {{ course.name if course else (module.course.name if module and module.course else 'Course') }} • {{ assignment.total_marks }} marks
             </p>
             {% if assignment.due_date %}
-            <div class="mt-2 text-sm {% if assignment.due_date < now %}text-red-400{% else %}text-slate-400{% endif %}">
-                {% if assignment.due_date < now %}
+            <div class="mt-2 text-sm {% if (assignment.due_date|as_app_naive) < (now|as_app_naive) %}text-red-400{% else %}text-slate-400{% endif %}">
+                {% if (assignment.due_date|as_app_naive) < (now|as_app_naive) %}
                 <i class="bi bi-exclamation-circle"></i> This assignment is past due
                 {% else %}
                 <i class="bi bi-clock"></i> Due: {{ assignment.due_date.strftime('%B %d, %Y at %H:%M') }}

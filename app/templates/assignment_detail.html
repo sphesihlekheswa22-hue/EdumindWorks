@@ -115,7 +115,7 @@
                             <div class="font-medium text-white">Not Submitted Yet</div>
                             <div class="text-sm text-slate-400">
                                 {% if assignment.due_date %}
-                                    {% if assignment.due_date < now %}
+                                    {% if (assignment.due_date|as_app_naive) < (now|as_app_naive) %}
                                     <span class="text-red-400">Past due date</span>
                                     {% else %}
                                     Due: {{ assignment.due_date.strftime('%B %d, %Y at %H:%M') }}
@@ -185,7 +185,7 @@
                         </span>
                         {% endif %}
                     {% else %}
-                        {% if assignment.due_date and assignment.due_date < now %}
+                        {% if assignment.due_date and (assignment.due_date|as_app_naive) < (now|as_app_naive) %}
                         <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/20 text-red-400 text-sm font-medium">
                             <i class="bi bi-exclamation-circle"></i> Overdue
                         </span>
