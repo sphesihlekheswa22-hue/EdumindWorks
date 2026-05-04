@@ -52,8 +52,12 @@ class Config:
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB max file size
     ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'ppt', 'pptx', 'txt', 'jpg', 'png', 'jpeg'}
     
-    # NVIDIA API (for AI features) - Using OpenRouter
+    # NVIDIA API (for AI features) - Using OpenRouter (optional if Ollama is used)
     OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
+
+    # Ollama: local / self-hosted LLM (see https://ollama.com). Used when OLLAMA_BASE_URL is non-empty.
+    OLLAMA_BASE_URL = os.environ.get('OLLAMA_BASE_URL', '').strip()
+    OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'llama3.2').strip()
     
     # Email Configuration
     MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
@@ -82,6 +86,13 @@ class DevelopmentConfig(Config):
     SQLALCHEMY_ECHO = False
     WTF_CSRF_ENABLED = True  # Enable CSRF even in development for testing
 
+    # Default to local Ollama for free AI. Install Ollama, then: ollama pull llama3.2
+    # To turn off Ollama in dev (e.g. OpenRouter only), set OLLAMA_BASE_URL= in .env
+    if 'OLLAMA_BASE_URL' not in os.environ:
+        OLLAMA_BASE_URL = 'http://127.0.0.1:11434'
+    else:
+        OLLAMA_BASE_URL = os.environ.get('OLLAMA_BASE_URL', '').strip()
+
 
 class ProductionConfig(Config):
     """Production configuration."""
@@ -102,6 +113,7 @@ class TestingConfig(Config):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
     WTF_CSRF_ENABLED = False
+    OLLAMA_BASE_URL = ''
 
 
 config = {

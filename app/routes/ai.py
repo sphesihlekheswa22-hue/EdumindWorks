@@ -5,7 +5,6 @@ import json
 from app.utils.app_time import app_now, app_today
 import requests
 import re
-import os
 from app import db
 from app.models import (
     ChatSession, ChatMessage, StudyPlan, StudyPlanItem, 
@@ -20,29 +19,36 @@ OLLAMA_BASE_URL_DEFAULT = "http://127.0.0.1:11434"
 OLLAMA_MODEL_DEFAULT = "llama3.2"
 
 
+def _cfg_ollama_base_url() -> str:
+    """Ollama HTTP base (from Flask config; see app.config OLLAMA_BASE_URL)."""
+    return (current_app.config.get("OLLAMA_BASE_URL") or "").strip()
+
+
+def _cfg_ollama_model() -> str:
+    return (current_app.config.get("OLLAMA_MODEL") or OLLAMA_MODEL_DEFAULT).strip()
+
+
 def _ai_enabled() -> bool:
     # Enabled if either OpenRouter is configured OR Ollama is configured
     api_key = current_app.config.get("OPENROUTER_API_KEY")
     if api_key and str(api_key).strip():
         return True
-    ollama_url = (os.environ.get("OLLAMA_BASE_URL") or "").strip()
-    return bool(ollama_url)
+    return bool(_cfg_ollama_base_url())
 
 
 def _ai_provider() -> str:
     """Return active provider: 'ollama' or 'openrouter'."""
-    ollama_url = (os.environ.get("OLLAMA_BASE_URL") or "").strip()
-    if ollama_url:
+    if _cfg_ollama_base_url():
         return "ollama"
     return "openrouter"
 
 
-def _ollama_chat(messages: list[dict], model: str, timeout: int = 180) -> str:
+def _ollama_chat(messages: list[dict], model: str, base_url: str, timeout: int = 180) -> str:
     """
-    Call Ollama's local chat API.
-    Requires Ollama running locally and the model pulled: `ollama pull <model>`.
+    Call Ollama's chat API (`POST /api/chat`).
+    Requires Ollama running and the model pulled: `ollama pull <model>`.
     """
-    base_url = (os.environ.get("OLLAMA_BASE_URL") or OLLAMA_BASE_URL_DEFAULT).rstrip("/")
+    base_url = (base_url or OLLAMA_BASE_URL_DEFAULT).rstrip("/")
     resp = requests.post(
         url=f"{base_url}/api/chat",
         headers={"Content-Type": "application/json"},
@@ -154,6 +160,11 @@ def ai_health():
     masked_key = (str(api_key)[:10] + "...") if openrouter_enabled and len(str(api_key)) > 10 else ("***" if openrouter_enabled else None)
     provider = _ai_provider()
     enabled = openrouter_enabled or provider == "ollama"
+    msg = (
+        "AI is enabled."
+        if enabled
+        else "AI is disabled (no OPENROUTER_API_KEY and no OLLAMA_BASE_URL). Fallback mode is active."
+    )
 
     # Do not 500: allow app to run with AI disabled.
     return jsonify(
@@ -161,23 +172,38 @@ def ai_health():
             "status": "ok",
             "ai_enabled": enabled,
             "provider": provider,
-            "model": (os.environ.get("OLLAMA_MODEL") or OLLAMA_MODEL_DEFAULT) if provider == "ollama" else AI_MODEL_DEFAULT,
+            "ollama_base_url": _cfg_ollama_base_url() if provider == "ollama" else None,
+            "model": _cfg_ollama_model() if provider == "ollama" else AI_MODEL_DEFAULT,
             "api_key_configured": openrouter_enabled,
             "api_key_masked": masked_key,
-            "message": (
-                "AI is enabled." if enabled else "AI is disabled (no OPENROUTER_API_KEY). Fallback mode is active."
-            ),
+            "message": msg,
         }
     )
 
 
 @ai_bp.route('/test')
 def ai_test():
-    """Direct test of OpenRouter API."""
+    """Smoke test OpenRouter or Ollama (whichever provider is active)."""
+    provider = _ai_provider()
+    if provider == "ollama":
+        client = get_ai_client()
+        if not client:
+            return jsonify({"error": "Ollama not configured"}), 500
+        try:
+            text = _ollama_chat(
+                [{"role": "user", "content": "Say hello in one sentence."}],
+                model=client["model"],
+                base_url=client["base_url"],
+                timeout=60,
+            )
+            return jsonify({"provider": "ollama", "reply": text})
+        except Exception as e:
+            return jsonify({"error": str(e), "hint": "Is Ollama running? Try: ollama serve && ollama pull " + client.get("model", "llama3.2")}), 500
+
     api_key = current_app.config.get('OPENROUTER_API_KEY')
     if not api_key:
         return jsonify({'error': 'API key not configured'}), 500
-    
+
     try:
         response = requests.post(
             url="https://openrouter.ai/api/v1/chat/completions",
@@ -193,7 +219,7 @@ def ai_test():
             }),
             timeout=30
         )
-        
+
         return jsonify({
             'status_code': response.status_code,
             'response': response.json()
@@ -206,12 +232,13 @@ def get_ai_client():
     """Get AI client configuration for OpenRouter or Ollama."""
     provider = _ai_provider()
     if provider == "ollama":
-        model = (os.environ.get("OLLAMA_MODEL") or OLLAMA_MODEL_DEFAULT).strip()
-        base_url = (os.environ.get("OLLAMA_BASE_URL") or OLLAMA_BASE_URL_DEFAULT).strip()
+        model = _cfg_ollama_model()
+        base_url = _cfg_ollama_base_url() or OLLAMA_BASE_URL_DEFAULT
+        base_url = base_url.strip()
         if not base_url:
             return None
         current_app.logger.info(f"AI: Using Ollama at {base_url} model={model}")
-        return {"provider": "ollama", "base_url": base_url, "model": model}
+        return {"provider": "ollama", "base_url": base_url.rstrip("/"), "model": model}
 
     api_key = current_app.config.get("OPENROUTER_API_KEY")
     if not api_key or not str(api_key).strip():
@@ -354,7 +381,12 @@ def send_message(session_id):
     else:
         try:
             if client.get("provider") == "ollama":
-                ai_response = _ollama_chat(openai_messages, model=client["model"], timeout=180)
+                ai_response = _ollama_chat(
+                    openai_messages,
+                    model=client["model"],
+                    base_url=client["base_url"],
+                    timeout=180,
+                )
             else:
                 current_app.logger.info(f"AI: Sending request to OpenRouter API with model {client.get('model')}")
                 response = requests.post(
@@ -533,6 +565,7 @@ def generate_study_plan():
     client = get_ai_client()
     
     if client and context:
+        plan_content: str | None = None
         try:
             prompt = f"""Create a {duration_weeks}-week study plan for the following course.
 {context}
@@ -548,7 +581,12 @@ Make it practical and focused on key topics."""
             
             if client.get("provider") == "ollama":
                 current_app.logger.info("AI: Generating study plan with Ollama")
-                plan_content = _ollama_chat([{"role": "user", "content": prompt}], model=client["model"], timeout=240)
+                plan_content = _ollama_chat(
+                    [{"role": "user", "content": prompt}],
+                    model=client["model"],
+                    base_url=client["base_url"],
+                    timeout=240,
+                )
             else:
                 current_app.logger.info("AI: Generating study plan with OpenRouter")
                 response = requests.post(
@@ -570,25 +608,28 @@ Make it practical and focused on key topics."""
                     plan_content = response_data['choices'][0]['message']['content']
                 else:
                     plan_content = None
-            
+
+            plan_content = plan_content.strip() if isinstance(plan_content, str) else ""
+
             # Parse and create items
-            lines = plan_content.split('\n')
-            week = 1
-            order = 1
-            for line in lines:
-                if line.strip() and (line.startswith('-') or line[0].isdigit()):
-                    item = StudyPlanItem(
-                        study_plan_id=plan.id,
-                        title=line.strip(),
-                        task_type='general',
-                        order=order,
-                        priority='medium'
-                    )
-                    db.session.add(item)
-                    order += 1
-                    
-                    if 'Week' in line:
-                        week = int(''.join(filter(str.isdigit, line))) if any(c.isdigit() for c in line) else week
+            if plan_content:
+                lines = plan_content.split('\n')
+                week = 1
+                order = 1
+                for line in lines:
+                    if line.strip() and (line.startswith('-') or line[0].isdigit()):
+                        item = StudyPlanItem(
+                            study_plan_id=plan.id,
+                            title=line.strip(),
+                            task_type='general',
+                            order=order,
+                            priority='medium'
+                        )
+                        db.session.add(item)
+                        order += 1
+
+                        if 'Week' in line:
+                            week = int(''.join(filter(str.isdigit, line))) if any(c.isdigit() for c in line) else week
         except Exception as e:
             # Fallback to default items
             pass
