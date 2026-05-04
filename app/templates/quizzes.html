@@ -115,7 +115,7 @@
     <div class="grid grid-cols-3 gap-3 mb-6">
       <div class="p-3 rounded-xl bg-white/5 text-center">
         <i class="bi bi-question-circle text-blue-400 mb-1 block"></i>
-        <span class="text-lg font-bold text-white block">{{ quiz.question_count }}</span>
+        <span class="text-lg font-bold text-white block">{{ quiz_question_counts.get(quiz.id, 0) if quiz_question_counts is defined else quiz.question_count }}</span>
         <span class="text-xs text-slate-500">Questions</span>
       </div>
       <div class="p-3 rounded-xl bg-white/5 text-center">
@@ -145,11 +145,16 @@
         </a>
         {% elif quiz.is_published %}
         {% set past_due = quiz.due_date and now and ((now|as_app_naive) > (quiz.due_date|as_app_naive)) %}
+        {% set has_questions = (quiz_question_counts.get(quiz.id, 0) if quiz_question_counts is defined else quiz.question_count) > 0 %}
         <span class="text-sm {% if past_due %}text-amber-400{% else %}text-slate-500{% endif %}">
           Due: {{ quiz.due_date.strftime('%b %d, %H:%M') if quiz.due_date else 'No deadline' }}
           {% if past_due %}<span class="block text-xs mt-0.5">Past due — view only</span>{% endif %}
         </span>
-        {% if past_due %}
+        {% if not has_questions %}
+        <span class="text-xs text-amber-300/90 max-w-[12rem] text-right leading-snug">
+          No questions yet — your instructor needs to finish this quiz.
+        </span>
+        {% elif past_due %}
         <a href="{{ url_for('quizzes.preview_quiz', quiz_id=quiz.id) }}" 
            class="soft-button px-4 py-2 rounded-xl text-amber-200 text-sm font-medium inline-flex items-center gap-2 border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 transition-transform">
           <i class="bi bi-eye"></i> View quiz

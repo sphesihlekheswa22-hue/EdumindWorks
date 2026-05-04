@@ -21,8 +21,24 @@ from app.utils.access_control import (
     is_admin,
 )
 from app.services.notification_service import NotificationService
+from sqlalchemy import func
 
 quizzes_bp = Blueprint('quizzes', __name__, url_prefix='/quizzes')
+
+
+def _quiz_question_counts(quiz_rows: List[Quiz]) -> Dict[int, int]:
+    """Batched COUNT(quiz_questions) per quiz_id — matches rows loaded in take/submit routes."""
+    if not quiz_rows:
+        return {}
+    ids = [q.id for q in quiz_rows]
+    rows = (
+        db.session.query(QuizQuestion.quiz_id, func.count(QuizQuestion.id))
+        .filter(QuizQuestion.quiz_id.in_(ids))
+        .group_by(QuizQuestion.quiz_id)
+        .all()
+    )
+    tally = {int(qid): int(n) for qid, n in rows}
+    return {int(q.id): int(tally.get(q.id, 0)) for q in quiz_rows}
 
 
 def _parse_quiz_due_datetime(raw: Optional[str]) -> Optional[datetime]:
@@ -123,11 +139,15 @@ def index():
     completed_quiz_ids = {r.quiz_id for r in results_list}
     results_by_quiz = {r.quiz_id: r for r in results_list}
 
+    unique_quizzes: List[Quiz] = list({item["quiz"].id: item["quiz"] for item in quizzes}.values())
+    q_counts = _quiz_question_counts(unique_quizzes)
+
     return render_template(
         'quizzes_all.html',
         quizzes=quizzes,
         completed_quiz_ids=completed_quiz_ids,
         results_by_quiz=results_by_quiz,
+        quiz_question_counts=q_counts,
         now=app_now(),
     )
 
@@ -181,6 +201,7 @@ def list_quizzes(module_id: int) -> str:
         
         completed_ids: set = {r.quiz_id for r in results}
         results_map: Dict[int, QuizResult] = {r.quiz_id: r for r in results}
+        q_counts = _quiz_question_counts(quizzes)
         
         return render_template(
             'quizzes.html',
@@ -189,12 +210,15 @@ def list_quizzes(module_id: int) -> str:
             quizzes=quizzes,
             completed_quiz_ids=completed_ids,
             results=results_map,
+            quiz_question_counts=q_counts,
             now=app_now(),
         )
     
     # Lecturers/Admins see all quizzes
     quizzes = Quiz.query.filter_by(module_id=module_id)\
         .order_by(Quiz.created_at.desc()).all()
+
+    q_counts = _quiz_question_counts(quizzes)
     
     return render_template(
         'quizzes.html',
@@ -202,6 +226,7 @@ def list_quizzes(module_id: int) -> str:
         module=module,
         quizzes=quizzes,
         is_instructor_view=True,
+        quiz_question_counts=q_counts,
         now=app_now(),
     )
 
@@ -559,6 +584,16 @@ def publish_quiz(quiz_id: int) -> redirect:
     
     # Check permission - only lecturer/admin can publish
     check_quiz_permission(quiz, 'edit')
+
+    toggling_on = not quiz.is_published
+    if toggling_on:
+        q_count = QuizQuestion.query.filter_by(quiz_id=quiz.id).count()
+        if q_count == 0:
+            flash(
+                'Add at least one question before publishing this quiz. Students cannot take an empty quiz.',
+                'danger',
+            )
+            return redirect(url_for('quizzes.edit_quiz', quiz_id=quiz.id))
     
     # Toggle published status
     quiz.is_published = not quiz.is_published

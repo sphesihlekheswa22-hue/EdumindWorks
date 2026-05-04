@@ -113,8 +113,8 @@
 }
 
 @keyframes slideUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
+    from { transform: translateY(20px); }
+    to { transform: translateY(0); }
 }
 
 @keyframes pulse {
@@ -131,9 +131,10 @@
     animation: fadeIn var(--transition-base) ease-out forwards;
 }
 
+/* Do not tie visibility to opacity:0 — users with reduced motion or blocked animations
+   would see blank question cards. Motion-only slide keeps content readable. */
 .animate-slide-up {
-    opacity: 0;
-    animation: slideUp var(--transition-slow) ease-out forwards;
+    animation: slideUp var(--transition-slow) ease-out both;
 }
 
 .animate-pulse {
@@ -825,6 +826,12 @@
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
+    }
+
+    .quiz-container .animate-slide-up,
+    .quiz-container .animate-fade-in {
+        animation: none !important;
+        opacity: 1 !important;
     }
 }
 

@@ -108,6 +108,7 @@
                     </div>
 
                     {% set past_due = item.quiz.due_date and now and (now > (item.quiz.due_date|as_app_naive)) %}
+                    {% set qn = quiz_question_counts.get(item.quiz.id, 0) if quiz_question_counts is defined else item.quiz.question_count %}
                     {% if item.quiz.id in completed_quiz_ids|default({}) %}
                     <a href="{{ url_for('quizzes.quiz_result', result_id=results_by_quiz[item.quiz.id].id) }}"
                        class="soft-button px-4 py-2.5 rounded-xl text-sm font-semibold transition-all inline-flex items-center gap-2 hover:scale-105">
@@ -120,6 +121,8 @@
                         <i class="bi bi-eye"></i>
                         View only
                     </a>
+                    {% elif qn == 0 %}
+                    <span class="text-[11px] text-amber-200/90 text-right leading-snug max-w-[11rem]">No questions yet</span>
                     {% else %}
                     <a href="{{ url_for('quizzes.take_quiz', quiz_id=item.quiz.id) }}"
                        class="soft-button px-4 py-2.5 rounded-xl text-sm font-semibold transition-all inline-flex items-center gap-2 hover:scale-105">
