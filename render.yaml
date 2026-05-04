@@ -3,7 +3,8 @@ services:
     name: edumind-ai
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn wsgi:application --bind 0.0.0.0:$PORT
+    # Match Procfile: allow slow OpenRouter responses (default gunicorn timeout is 30s)
+    startCommand: gunicorn wsgi:application --bind 0.0.0.0:$PORT --workers 1 --timeout 120
     envVars:
       - key: FLASK_ENV
         value: production

@@ -53,7 +53,12 @@ class Config:
     ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'ppt', 'pptx', 'txt', 'jpg', 'png', 'jpeg'}
     
     # NVIDIA API (for AI features) - Using OpenRouter (optional if Ollama is used)
-    OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
+    # Support common Render/env typos (must be an OpenRouter key for https://openrouter.ai — not raw OpenAI)
+    OPENROUTER_API_KEY = (
+        os.environ.get('OPENROUTER_API_KEY')
+        or os.environ.get('OPEN_ROUTER_API_KEY')
+        or ''
+    ).strip()
     # OpenRouter expects app attribution (public URL of your app). On Render, RENDER_EXTERNAL_URL is set for you.
     _or_ref = (os.environ.get('OPENROUTER_REFERER') or os.environ.get('RENDER_EXTERNAL_URL') or '').strip()
     OPENROUTER_REFERER = _or_ref or 'http://127.0.0.1:5000'

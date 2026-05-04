@@ -341,19 +341,60 @@
         }
     }
     
-    // Show typing indicator on submit
-    chatForm.addEventListener('submit', function(e) {
-        // Show typing indicator
+    function resetChatInputState() {
+        typingIndicator.classList.add('hidden');
+        messageInput.disabled = false;
+        document.getElementById('sendButton').disabled = messageInput.value.trim().length === 0;
+    }
+
+    // Submit via fetch so slow LLM calls don't "hang" forever without feedback
+    chatForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const text = messageInput.value.trim();
+        if (!text) return;
+
         typingIndicator.classList.remove('hidden');
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        
-        // Disable input temporarily
         messageInput.disabled = true;
         document.getElementById('sendButton').disabled = true;
-        
-        // Reset textarea
         messageInput.style.height = 'auto';
         charCount.textContent = '0';
+
+        const fd = new FormData(chatForm);
+        const ctrl = new AbortController();
+        const t = setTimeout(function() { ctrl.abort(); }, 115000);
+
+        try {
+            const res = await fetch(chatForm.action, {
+                method: 'POST',
+                body: fd,
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                signal: ctrl.signal
+            });
+            clearTimeout(t);
+            const data = await res.json().catch(function() { return {}; });
+
+            if (res.ok && data.redirect) {
+                window.location.href = data.redirect;
+                return;
+            }
+            if (data.error) {
+                alert(data.error || 'Could not send message.');
+                resetChatInputState();
+                return;
+            }
+            alert('Unexpected response from server (' + res.status + ').');
+            resetChatInputState();
+        } catch (err) {
+            clearTimeout(t);
+            if (err && err.name === 'AbortError') {
+                alert('Request timed out after ~2 minutes. Check Render logs and OPENROUTER_API_KEY.');
+            } else {
+                alert('Network error: ' + (err && err.message ? err.message : String(err)));
+            }
+            resetChatInputState();
+        }
     });
     
     // Quick message buttons

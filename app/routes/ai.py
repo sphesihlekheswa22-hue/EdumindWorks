@@ -28,6 +28,11 @@ def _cfg_ollama_model() -> str:
     return (current_app.config.get("OLLAMA_MODEL") or OLLAMA_MODEL_DEFAULT).strip()
 
 
+def _wants_json_response() -> bool:
+    """True when chat send should return JSON (fetch + X-Requested-With)."""
+    return (request.headers.get("X-Requested-With") or "").strip().lower() == "xmlhttprequest"
+
+
 def _openrouter_headers(api_key: str) -> dict:
     """Headers OpenRouter recommends for attribution (rankings / fewer odd failures)."""
     ref = (current_app.config.get("OPENROUTER_REFERER") or "http://127.0.0.1:5000").strip()
@@ -351,18 +356,23 @@ def chat_session(session_id):
 def send_message(session_id):
     """Send a message to AI tutor."""
     if current_user.role != 'student':
-        return jsonify({'error': 'Access denied'}), 403
-    
+        return jsonify({'ok': False, 'error': 'Access denied'}), 403
+
     student = Student.query.filter_by(user_id=current_user.id).first()
-    
+    if not student:
+        if _wants_json_response():
+            return jsonify({'ok': False, 'error': 'No student profile for this account'}), 400
+        flash('AI chat requires a student profile.', 'danger')
+        return redirect(url_for('main.dashboard'))
+
     session = ChatSession.query.get_or_404(session_id)
     if session.student_id != student.id:
-        return jsonify({'error': 'Access denied'}), 403
-    
+        return jsonify({'ok': False, 'error': 'Access denied'}), 403
+
     user_message = request.form.get('message')
     if not user_message:
-        return jsonify({'error': 'No message provided'}), 400
-    
+        return jsonify({'ok': False, 'error': 'No message provided'}), 400
+
     # Save user message
     user_msg = ChatMessage(
         session_id=session_id,
@@ -370,8 +380,9 @@ def send_message(session_id):
         content=user_message
     )
     db.session.add(user_msg)
-    
-    # Get conversation history
+    db.session.flush()
+
+    # Get conversation history (includes user_msg after flush)
     messages = ChatMessage.query.filter_by(session_id=session_id)\
         .order_by(ChatMessage.created_at).all()
     
@@ -383,11 +394,10 @@ def send_message(session_id):
     
     context += "Provide helpful, educational responses. Explain concepts clearly and provide examples when appropriate."
     
-    # Prepare messages for OpenAI
+    # Prepare messages for model (DB already includes the new user message after flush)
     openai_messages = [{"role": "system", "content": context}]
     for msg in messages[-10:]:  # Last 10 messages for context
         openai_messages.append({"role": msg.role, "content": msg.content})
-    openai_messages.append({"role": "user", "content": user_message})
     
     # Get AI response
     client = get_ai_client()
@@ -415,7 +425,7 @@ def send_message(session_id):
                         "max_tokens": 500,
                         "reasoning": {"enabled": False}
                     }),
-                    timeout=55
+                    timeout=95
                 )
                 if response.status_code != 200:
                     current_app.logger.error(f"AI: HTTP error {response.status_code}: {response.text}")
@@ -449,10 +459,21 @@ def send_message(session_id):
     
     # Update session
     session.updated_at = app_now()
-    
-    db.session.commit()
-    
-    return redirect(url_for('ai.chat_session', session_id=session_id))
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("send_message: commit failed")
+        if _wants_json_response():
+            return jsonify({'ok': False, 'error': 'Could not save your message. Try again.'}), 500
+        flash('Could not save your message. Please try again.', 'danger')
+        return redirect(url_for('ai.chat_session', session_id=session_id))
+
+    next_url = url_for('ai.chat_session', session_id=session_id)
+    if _wants_json_response():
+        return jsonify({'ok': True, 'redirect': next_url})
+    return redirect(next_url)
 
 
 @ai_bp.route('/summarize/<int:material_id>')
