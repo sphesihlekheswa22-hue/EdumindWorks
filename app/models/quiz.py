@@ -1,5 +1,5 @@
 from app import db
-from app.utils.app_time import app_now
+from app.utils.app_time import app_now, APP_TZ
 import json
 
 
@@ -74,7 +74,16 @@ class Quiz(db.Model):
         """True if due date is set and current app timezone time is after the deadline."""
         if self.due_date is None:
             return False
-        return app_now() > self.due_date
+        due = self.due_date
+        # Postgres TIMESTAMPTZ may come back as tz-aware; our app clock is naive wall time.
+        # Normalize to app-local naive before comparing.
+        if getattr(due, "tzinfo", None) is not None:
+            try:
+                due = due.astimezone(APP_TZ).replace(tzinfo=None)
+            except Exception:
+                # Best-effort fallback: drop tzinfo to avoid crashing the request.
+                due = due.replace(tzinfo=None)
+        return app_now() > due
 
     def get_timer_duration_seconds(self) -> int:
         """Countdown length when taking the quiz. Prefers time_limit_seconds; else time_limit in minutes."""

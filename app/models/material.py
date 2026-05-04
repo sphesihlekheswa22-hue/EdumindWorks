@@ -20,7 +20,9 @@ class CourseMaterial(db.Model):
     file_name = db.Column(db.String(255), nullable=False)
     file_type = db.Column(db.String(50), nullable=False)
     file_size = db.Column(db.Integer, nullable=False)
-    category = db.Column(db.String(50), default='general')
+    # Must match Postgres CHECK constraint in `database_schema_postgres.sql`
+    # ('lecture','assignment','reading','notes','other')
+    category = db.Column(db.String(50), default='other')
     uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     is_published = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=app_now)

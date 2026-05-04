@@ -40,6 +40,9 @@ ALLOWED_EXTENSIONS: Set[str] = {
 
 MAX_FILE_SIZE: int = 50 * 1024 * 1024  # 50MB
 
+# Must match Postgres CHECK constraint in `database_schema_postgres.sql`
+MATERIAL_CATEGORIES: Set[str] = {"lecture", "assignment", "reading", "notes", "other"}
+
 
 class MaterialError(Exception):
     """Custom exception for material operations."""
@@ -237,7 +240,11 @@ def list_materials(module_id: int) -> str:
     # Group by category
     categories: dict = {}
     for material in materials:
-        cat: str = material.category or 'general'
+        cat: str = (material.category or 'other').strip().lower()
+        if cat == 'general':
+            cat = 'other'
+        if cat not in MATERIAL_CATEGORIES:
+            cat = 'other'
         if cat not in categories:
             categories[cat] = []
         categories[cat].append(material)
@@ -325,10 +332,14 @@ def upload_material(module_id: int) -> Union[str, redirect]:
                 file_name=filename,
                 file_type=get_file_type(filename),
                 file_size=file_size,
-                category=request.form.get('category', 'general').strip(),
+                category=(request.form.get('category') or 'other').strip().lower(),
                 is_published=is_published,
                 uploaded_by=current_user.id
             )
+
+            # Normalize category to match DB constraint (Render uses Postgres CHECK constraint).
+            if (not material.category) or material.category == 'general' or material.category not in MATERIAL_CATEGORIES:
+                material.category = 'other'
             
             db.session.add(material)
             db.session.commit()

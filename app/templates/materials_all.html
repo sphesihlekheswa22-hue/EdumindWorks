@@ -93,7 +93,7 @@
             
             {% set mat_title = material.title|default('Untitled Material') %}
             {% set mat_desc = material.description|default('') %}
-            {% set mat_category = material.category|default('general') %}
+{% set mat_category = material.category|default('other') %}
             {% set mat_file_type = material.file_type|default('PDF')|upper %}
             {% set mat_file_name = material.file_name|default('unknown.file') %}
             {% set mat_file_size = material.file_size|default(0) %}
