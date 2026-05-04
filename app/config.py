@@ -54,6 +54,10 @@ class Config:
     
     # NVIDIA API (for AI features) - Using OpenRouter (optional if Ollama is used)
     OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
+    # OpenRouter expects app attribution (public URL of your app). On Render, RENDER_EXTERNAL_URL is set for you.
+    _or_ref = (os.environ.get('OPENROUTER_REFERER') or os.environ.get('RENDER_EXTERNAL_URL') or '').strip()
+    OPENROUTER_REFERER = _or_ref or 'http://127.0.0.1:5000'
+    OPENROUTER_APP_TITLE = (os.environ.get('OPENROUTER_APP_TITLE') or 'EduMind AI').strip() or 'EduMind AI'
 
     # Ollama: local / self-hosted LLM (see https://ollama.com). Used when OLLAMA_BASE_URL is non-empty.
     OLLAMA_BASE_URL = os.environ.get('OLLAMA_BASE_URL', '').strip()

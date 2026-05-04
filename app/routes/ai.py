@@ -28,6 +28,18 @@ def _cfg_ollama_model() -> str:
     return (current_app.config.get("OLLAMA_MODEL") or OLLAMA_MODEL_DEFAULT).strip()
 
 
+def _openrouter_headers(api_key: str) -> dict:
+    """Headers OpenRouter recommends for attribution (rankings / fewer odd failures)."""
+    ref = (current_app.config.get("OPENROUTER_REFERER") or "http://127.0.0.1:5000").strip()
+    title = (current_app.config.get("OPENROUTER_APP_TITLE") or "EduMind AI").strip()
+    return {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "Referer": ref,
+        "X-Title": title,
+    }
+
+
 def _ai_enabled() -> bool:
     # Enabled if either OpenRouter is configured OR Ollama is configured
     api_key = current_app.config.get("OPENROUTER_API_KEY")
@@ -37,13 +49,21 @@ def _ai_enabled() -> bool:
 
 
 def _ai_provider() -> str:
-    """Return active provider: 'ollama' or 'openrouter'."""
+    """Return active provider: 'ollama' or 'openrouter'.
+
+    If OPENROUTER_API_KEY is set, use OpenRouter first. Otherwise use Ollama when
+    OLLAMA_BASE_URL is set. This avoids Render/production hangs when OLLAMA_BASE_URL
+    points at localhost on the server (no daemon there).
+    """
+    api_key = current_app.config.get("OPENROUTER_API_KEY")
+    if api_key and str(api_key).strip():
+        return "openrouter"
     if _cfg_ollama_base_url():
         return "ollama"
     return "openrouter"
 
 
-def _ollama_chat(messages: list[dict], model: str, base_url: str, timeout: int = 180) -> str:
+def _ollama_chat(messages: list[dict], model: str, base_url: str, timeout: int = 90) -> str:
     """
     Call Ollama's chat API (`POST /api/chat`).
     Requires Ollama running and the model pulled: `ollama pull <model>`.
@@ -207,17 +227,14 @@ def ai_test():
     try:
         response = requests.post(
             url="https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
+            headers=_openrouter_headers(api_key),
             data=json.dumps({
                 "model": "nvidia/nemotron-3-nano-30b-a3b:free",
                 "messages": [{"role": "user", "content": "Say hello in one sentence."}],
                 "max_tokens": 100,
                 "reasoning": {"enabled": False}
             }),
-            timeout=30
+            timeout=45
         )
 
         return jsonify({
@@ -385,23 +402,20 @@ def send_message(session_id):
                     openai_messages,
                     model=client["model"],
                     base_url=client["base_url"],
-                    timeout=180,
+                    timeout=90,
                 )
             else:
                 current_app.logger.info(f"AI: Sending request to OpenRouter API with model {client.get('model')}")
                 response = requests.post(
                     url="https://openrouter.ai/api/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {client['api_key']}",
-                        "Content-Type": "application/json",
-                    },
+                    headers=_openrouter_headers(client["api_key"]),
                     data=json.dumps({
                         "model": client.get("model") or AI_MODEL_DEFAULT,
                         "messages": openai_messages,
                         "max_tokens": 500,
                         "reasoning": {"enabled": False}
                     }),
-                    timeout=30
+                    timeout=55
                 )
                 if response.status_code != 200:
                     current_app.logger.error(f"AI: HTTP error {response.status_code}: {response.text}")
@@ -585,23 +599,20 @@ Make it practical and focused on key topics."""
                     [{"role": "user", "content": prompt}],
                     model=client["model"],
                     base_url=client["base_url"],
-                    timeout=240,
+                    timeout=110,
                 )
             else:
                 current_app.logger.info("AI: Generating study plan with OpenRouter")
                 response = requests.post(
                     url="https://openrouter.ai/api/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {client['api_key']}",
-                        "Content-Type": "application/json",
-                    },
+                    headers=_openrouter_headers(client["api_key"]),
                     data=json.dumps({
                         "model": client.get("model") or AI_MODEL_DEFAULT,
                         "messages": [{"role": "user", "content": prompt}],
                         "max_tokens": 1000,
                         "reasoning": {"enabled": False}
                     }),
-                    timeout=30
+                    timeout=55
                 )
                 response_data = response.json()
                 if 'choices' in response_data and len(response_data['choices']) > 0:
