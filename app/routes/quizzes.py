@@ -1,5 +1,7 @@
 import json
-from typing import List, Dict, Union, Optional
+import csv
+import io
+from typing import List, Dict, Union, Optional, Any
 from dataclasses import dataclass
 from flask import (
     Blueprint, render_template, redirect, url_for, 
@@ -24,6 +26,238 @@ from app.services.notification_service import NotificationService
 from sqlalchemy import func
 
 quizzes_bp = Blueprint('quizzes', __name__, url_prefix='/quizzes')
+
+
+def _quiz_builder_ctx(quiz_id: int) -> tuple:
+    quiz: Quiz = Quiz.query.get_or_404(quiz_id)
+    check_quiz_permission(quiz, 'edit')
+    course = Course.query.get_or_404(quiz.course_id)
+    module = Module.query.get_or_404(quiz.module_id)
+    return quiz, course, module
+
+
+@quizzes_bp.route('/<int:quiz_id>/builder')
+@login_required
+def quiz_builder(quiz_id: int) -> str:
+    quiz, course, module = _quiz_builder_ctx(quiz_id)
+    return render_template('lecturer/quiz_builder.html', quiz=quiz, course=course, module=module)
+
+
+@quizzes_bp.route('/<int:quiz_id>/questions.json')
+@login_required
+def quiz_questions_json(quiz_id: int):
+    quiz, _, _ = _quiz_builder_ctx(quiz_id)
+    qs = QuizQuestion.query.filter_by(quiz_id=quiz.id).order_by(QuizQuestion.order).all()
+    questions = []
+    for q in qs:
+        qtype = q.normalized_question_type
+        questions.append(
+            {
+                "id": q.id,
+                "quiz_id": q.quiz_id,
+                "question_text": q.question_text,
+                "question_type": qtype,
+                "points": int(q.points or 1),
+                "order": int(q.order or 0),
+                "options": q.get_options() if qtype in ("multiple_choice", "true_false") else [],
+                "correct_answer": q.correct_answer,
+            }
+        )
+    return jsonify({"questions": questions})
+
+
+@quizzes_bp.route('/<int:quiz_id>/questions', methods=['POST'])
+@login_required
+def create_quiz_question(quiz_id: int):
+    quiz, _, _ = _quiz_builder_ctx(quiz_id)
+    payload: dict = request.get_json(silent=True) or {}
+    question_text = (payload.get("question_text") or "").strip()
+    if not question_text:
+        return ("Question text is required.", HTTPStatus.BAD_REQUEST)
+
+    qtype = (payload.get("question_type") or "multiple_choice").strip().lower()
+    if qtype not in ("multiple_choice", "true_false"):
+        return ("Unsupported question type.", HTTPStatus.BAD_REQUEST)
+
+    try:
+        points = int(payload.get("points") or 1)
+    except Exception:
+        points = 1
+    points = max(1, points)
+
+    current = QuizQuestion.query.filter_by(quiz_id=quiz.id).order_by(QuizQuestion.order.desc()).first()
+    next_order = (int(current.order or 0) + 1) if current else 1
+
+    q = QuizQuestion(quiz_id=quiz.id, question_text=question_text, question_type=qtype, points=points, order=next_order)
+
+    if qtype == "multiple_choice":
+        options = payload.get("options") or []
+        if not isinstance(options, list):
+            return ("Options must be a list.", HTTPStatus.BAD_REQUEST)
+        options_norm = [str(x).strip() for x in options if x is not None and str(x).strip()]
+        if len(options_norm) < 2 or len(options_norm) > 10:
+            return ("Multiple choice requires 2–10 non-empty options.", HTTPStatus.BAD_REQUEST)
+        try:
+            correct_index = int(payload.get("correct_index") or 0)
+        except Exception:
+            correct_index = 0
+        correct_index = max(0, min(correct_index, len(options_norm) - 1))
+        q.set_options(options_norm)
+        q.correct_answer = options_norm[correct_index]
+    else:
+        ca = (payload.get("correct_answer") or "True").strip()
+        ca_norm = "True" if ca.lower() in ("true", "t", "1", "yes", "y") else "False"
+        q.set_options(["True", "False"])
+        q.correct_answer = ca_norm
+
+    db.session.add(q)
+    db.session.commit()
+    return jsonify({"ok": True, "id": q.id})
+
+
+@quizzes_bp.route('/questions/<int:question_id>', methods=['PATCH'])
+@login_required
+def update_quiz_question(question_id: int):
+    q: QuizQuestion = QuizQuestion.query.get_or_404(question_id)
+    quiz, _, _ = _quiz_builder_ctx(q.quiz_id)
+    payload: dict = request.get_json(silent=True) or {}
+
+    if "question_text" in payload:
+        text = (payload.get("question_text") or "").strip()
+        if not text:
+            return ("Question text is required.", HTTPStatus.BAD_REQUEST)
+        q.question_text = text
+
+    if "points" in payload:
+        try:
+            q.points = max(1, int(payload.get("points") or 1))
+        except Exception:
+            pass
+
+    # Optional full update for MC/TF
+    if q.normalized_question_type == "multiple_choice" and ("options" in payload or "correct_index" in payload):
+        options = payload.get("options") or q.get_options()
+        if not isinstance(options, list):
+            return ("Options must be a list.", HTTPStatus.BAD_REQUEST)
+        options_norm = [str(x).strip() for x in options if x is not None and str(x).strip()]
+        if len(options_norm) < 2 or len(options_norm) > 10:
+            return ("Multiple choice requires 2–10 non-empty options.", HTTPStatus.BAD_REQUEST)
+        try:
+            correct_index = int(payload.get("correct_index") or 0)
+        except Exception:
+            correct_index = 0
+        correct_index = max(0, min(correct_index, len(options_norm) - 1))
+        q.set_options(options_norm)
+        q.correct_answer = options_norm[correct_index]
+
+    if q.normalized_question_type == "true_false" and "correct_answer" in payload:
+        ca = (payload.get("correct_answer") or "True").strip()
+        ca_norm = "True" if ca.lower() in ("true", "t", "1", "yes", "y") else "False"
+        q.set_options(["True", "False"])
+        q.correct_answer = ca_norm
+
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@quizzes_bp.route('/questions/<int:question_id>', methods=['DELETE'])
+@login_required
+def delete_quiz_question(question_id: int):
+    q: QuizQuestion = QuizQuestion.query.get_or_404(question_id)
+    quiz, _, _ = _quiz_builder_ctx(q.quiz_id)
+    db.session.delete(q)
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@quizzes_bp.route('/<int:quiz_id>/questions/reorder', methods=['POST'])
+@login_required
+def reorder_quiz_questions(quiz_id: int):
+    quiz, _, _ = _quiz_builder_ctx(quiz_id)
+    payload: dict = request.get_json(silent=True) or {}
+    ids = payload.get("question_ids") or []
+    if not isinstance(ids, list) or not all(isinstance(x, (int, float)) for x in ids):
+        return ("question_ids must be a list of ids.", HTTPStatus.BAD_REQUEST)
+    ids_int = [int(x) for x in ids]
+
+    existing = QuizQuestion.query.filter_by(quiz_id=quiz.id).all()
+    existing_ids = {int(q.id) for q in existing}
+    if set(ids_int) != existing_ids:
+        return ("Question list mismatch. Refresh and try again.", HTTPStatus.BAD_REQUEST)
+
+    by_id = {int(q.id): q for q in existing}
+    for idx, qid in enumerate(ids_int, start=1):
+        by_id[qid].order = idx
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@quizzes_bp.route('/<int:quiz_id>/questions/import_csv', methods=['POST'])
+@login_required
+def import_quiz_questions_csv(quiz_id: int):
+    quiz, _, _ = _quiz_builder_ctx(quiz_id)
+    payload: dict = request.get_json(silent=True) or {}
+    csv_text = payload.get("csv_text") or ""
+    if not str(csv_text).strip():
+        return jsonify({"added": 0, "errors": ["csv_text is required"]}), HTTPStatus.BAD_REQUEST
+
+    f = io.StringIO(str(csv_text))
+    reader = csv.DictReader(f)
+    errors: List[str] = []
+    added = 0
+
+    current = QuizQuestion.query.filter_by(quiz_id=quiz.id).order_by(QuizQuestion.order.desc()).first()
+    next_order = (int(current.order or 0) + 1) if current else 1
+
+    for row_i, row in enumerate(reader, start=2):  # header is line 1
+        try:
+            qtype = (row.get("question_type") or "multiple_choice").strip().lower()
+            if qtype not in ("multiple_choice", "true_false"):
+                raise ValueError("question_type must be multiple_choice or true_false")
+            qtext = (row.get("question_text") or "").strip()
+            if not qtext:
+                raise ValueError("question_text is required")
+            pts_raw = (row.get("points") or "").strip()
+            pts = int(pts_raw) if pts_raw else 1
+            pts = max(1, pts)
+            correct = (row.get("correct_answer") or "").strip()
+            q = QuizQuestion(quiz_id=quiz.id, question_text=qtext, question_type=qtype, points=pts, order=next_order)
+
+            if qtype == "multiple_choice":
+                opts: List[str] = []
+                for k, v in row.items():
+                    if not k:
+                        continue
+                    kk = str(k).strip().lower()
+                    if kk.startswith("option_"):
+                        if v is not None and str(v).strip():
+                            opts.append(str(v).strip())
+                if len(opts) < 2:
+                    raise ValueError("multiple_choice requires at least 2 options (option_1..)")
+                if len(opts) > 10:
+                    opts = opts[:10]
+                if not correct:
+                    raise ValueError("correct_answer is required for multiple_choice")
+                if correct not in opts:
+                    raise ValueError("correct_answer must match one of the options")
+                q.set_options(opts)
+                q.correct_answer = correct
+            else:
+                if not correct:
+                    raise ValueError("correct_answer is required for true_false")
+                ca_norm = "True" if correct.lower() in ("true", "t", "1", "yes", "y") else "False"
+                q.set_options(["True", "False"])
+                q.correct_answer = ca_norm
+
+            db.session.add(q)
+            added += 1
+            next_order += 1
+        except Exception as e:
+            errors.append(f"Row {row_i}: {str(e)}")
+
+    if added:
+        db.session.commit()
+    return jsonify({"added": added, "errors": errors})
 
 
 def _quiz_question_counts(quiz_rows: List[Quiz]) -> Dict[int, int]:
@@ -276,7 +510,7 @@ def create_quiz(module_id: int) -> Union[str, redirect]:
             db.session.commit()
             
             flash('Quiz created! Now add questions.', 'success')
-            return redirect(url_for('quizzes.edit_quiz', quiz_id=quiz.id))
+            return redirect(url_for('quizzes.quiz_builder', quiz_id=quiz.id))
             
         except ValueError as e:
             flash(f'Invalid input: {str(e)}', 'danger')

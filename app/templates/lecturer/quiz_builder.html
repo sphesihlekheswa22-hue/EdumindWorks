@@ -1,0 +1,442 @@
+{% extends "base.html" %}
+
+{% block title %}Question Builder - {{ quiz.title }} | EduMind AI{% endblock %}
+
+{% block page_title %}Question Builder{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <!-- Header -->
+  <div class="glass-card rounded-2xl p-6 border border-white/10 animate-slide-up">
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div class="min-w-0">
+        <div class="flex items-center gap-3 text-sm text-slate-400 mb-1">
+          <a href="{{ url_for('quizzes.list_quizzes', module_id=module.id) }}" class="hover:text-white transition-colors inline-flex items-center gap-2">
+            <i class="bi bi-arrow-left"></i> Back to quizzes
+          </a>
+          <span class="text-slate-600">•</span>
+          <a href="{{ url_for('quizzes.edit_quiz', quiz_id=quiz.id) }}" class="hover:text-white transition-colors">Edit quiz settings</a>
+        </div>
+        <h2 class="font-display text-2xl font-bold text-white truncate">{{ quiz.title }}</h2>
+        <p class="text-slate-400 text-sm mt-1">
+          {{ course.code }} • {{ module.title }} •
+          <span id="questionCount">0</span> question<span id="questionPlural">s</span>
+        </p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <form method="POST" action="{{ url_for('quizzes.publish_quiz', quiz_id=quiz.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <button type="submit"
+                  class="px-4 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-200 text-sm font-semibold transition-all">
+            {% if quiz.is_published %}<i class="bi bi-eye-slash mr-1"></i>Unpublish{% else %}<i class="bi bi-eye mr-1"></i>Publish{% endif %}
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <!-- Left: list + reorder -->
+    <div class="xl:col-span-2 space-y-4">
+      <div class="glass-card rounded-2xl p-6 border border-white/10">
+        <div class="flex items-center justify-between gap-4 mb-4">
+          <h3 class="font-semibold text-white">Questions</h3>
+          <div class="flex items-center gap-2">
+            <button id="saveOrderBtn" type="button"
+                    class="px-4 py-2 rounded-xl bg-blue-500/20 text-blue-300 border border-blue-500/20 hover:bg-blue-500/30 transition-colors text-sm font-semibold">
+              <i class="bi bi-save mr-1"></i>Save order
+            </button>
+            <button id="refreshBtn" type="button"
+                    class="px-4 py-2 rounded-xl bg-white/5 text-slate-200 border border-white/10 hover:bg-white/10 transition-colors text-sm font-semibold">
+              <i class="bi bi-arrow-repeat mr-1"></i>Refresh
+            </button>
+          </div>
+        </div>
+
+        <p class="text-sm text-slate-400 mb-4">
+          Drag to reorder. Use the actions menu to edit or delete.
+        </p>
+
+        <div id="questionsEmpty" class="hidden p-6 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-sm">
+          No questions yet. Add your first question on the right, or import a CSV.
+        </div>
+
+        <ol id="questionList" class="space-y-3"></ol>
+      </div>
+    </div>
+
+    <!-- Right: add + import -->
+    <div class="space-y-4">
+      <div class="glass-card rounded-2xl p-6 border border-white/10">
+        <h3 class="font-semibold text-white mb-4">Add question</h3>
+
+        <div class="space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="sm:col-span-2">
+              <label class="text-sm font-medium text-slate-300">Type</label>
+              <select id="qType" class="mt-2 w-full px-4 py-3 rounded-xl bg-slate-900/50 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                <option value="multiple_choice" selected>Multiple choice</option>
+                <option value="true_false">True / False</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-sm font-medium text-slate-300">Points</label>
+              <input id="qPoints" type="number" min="1" max="50" value="1"
+                     class="mt-2 w-full px-4 py-3 rounded-xl bg-slate-900/50 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"/>
+            </div>
+          </div>
+
+          <div>
+            <label class="text-sm font-medium text-slate-300">Question text</label>
+            <textarea id="qText" rows="3"
+                      class="mt-2 w-full px-4 py-3 rounded-xl bg-slate-900/50 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none"
+                      placeholder="Type the question..."></textarea>
+          </div>
+
+          <!-- MC options -->
+          <div id="mcPanel" class="space-y-3">
+            <div class="flex items-center justify-between">
+              <p class="text-sm text-slate-400">Options (2–10). Choose the correct one.</p>
+              <button id="addOptionBtn" type="button" class="text-sm font-semibold text-blue-300 hover:text-blue-200">
+                <i class="bi bi-plus-circle mr-1"></i>Add option
+              </button>
+            </div>
+            <div id="mcOptions" class="space-y-2"></div>
+          </div>
+
+          <!-- TF -->
+          <div id="tfPanel" class="space-y-3 hidden">
+            <p class="text-sm text-slate-400">Select the correct answer.</p>
+            <div class="flex gap-3">
+              <label class="flex items-center gap-2 px-4 py-3 rounded-xl bg-white/5 border border-white/10 cursor-pointer">
+                <input type="radio" name="tfCorrect" value="True" checked />
+                <span class="text-white font-medium">True</span>
+              </label>
+              <label class="flex items-center gap-2 px-4 py-3 rounded-xl bg-white/5 border border-white/10 cursor-pointer">
+                <input type="radio" name="tfCorrect" value="False" />
+                <span class="text-white font-medium">False</span>
+              </label>
+            </div>
+          </div>
+
+          <button id="createQuestionBtn" type="button"
+                  class="w-full px-5 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all">
+            Add question
+          </button>
+
+          <div id="addError" class="hidden text-sm text-red-300 bg-red-500/10 border border-red-500/20 rounded-xl p-3"></div>
+        </div>
+      </div>
+
+      <div class="glass-card rounded-2xl p-6 border border-white/10">
+        <h3 class="font-semibold text-white mb-4">Import CSV</h3>
+        <p class="text-sm text-slate-400 mb-4">
+          Columns: <code class="text-slate-200">question_type,question_text,points,correct_answer,option_1..option_10</code>
+        </p>
+
+        <textarea id="csvText" rows="6"
+                  class="w-full px-4 py-3 rounded-xl bg-slate-900/50 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none"
+                  placeholder="Paste CSV here..."></textarea>
+
+        <div class="mt-3 flex items-center gap-2">
+          <button id="importCsvBtn" type="button"
+                  class="flex-1 px-5 py-3 rounded-xl bg-emerald-500/20 text-emerald-200 border border-emerald-500/20 hover:bg-emerald-500/30 transition-colors font-semibold">
+            <i class="bi bi-upload mr-1"></i>Import
+          </button>
+          <button id="sampleCsvBtn" type="button"
+                  class="px-4 py-3 rounded-xl bg-white/5 text-slate-200 border border-white/10 hover:bg-white/10 transition-colors font-semibold"
+                  title="Copy a sample CSV">
+            <i class="bi bi-clipboard"></i>
+          </button>
+        </div>
+
+        <div id="importResult" class="hidden mt-3 text-sm rounded-xl p-3 border"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const QUIZ_ID = {{ quiz.id }};
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+  function esc(s) {
+    return (s ?? '').toString().replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function apiFetch(url, opts = {}) {
+    const headers = {
+      ...(opts.headers || {}),
+      ...(csrfToken ? {'X-CSRFToken': csrfToken} : {}),
+    };
+    return fetch(url, { ...opts, headers });
+  }
+
+  function updateCount(n) {
+    document.getElementById('questionCount').textContent = String(n);
+    document.getElementById('questionPlural').textContent = (n === 1) ? '' : 's';
+    document.getElementById('questionsEmpty').classList.toggle('hidden', n !== 0);
+  }
+
+  function makeOptionRow(value = '', isCorrect = false) {
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-2';
+    row.innerHTML = `
+      <input type="radio" name="mcCorrect" class="shrink-0" ${isCorrect ? 'checked' : ''}/>
+      <input type="text" class="flex-1 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" placeholder="Option" value="${esc(value)}"/>
+      <button type="button" class="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-200 hover:bg-white/10" title="Remove option">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    `;
+    row.querySelector('button').addEventListener('click', () => {
+      row.remove();
+      // ensure at least one correct remains checked
+      const radios = [...document.querySelectorAll('#mcOptions input[type=\"radio\"]')];
+      if (radios.length && !radios.some(r => r.checked)) radios[0].checked = true;
+    });
+    return row;
+  }
+
+  function initOptions() {
+    const host = document.getElementById('mcOptions');
+    host.innerHTML = '';
+    host.appendChild(makeOptionRow('', true));
+    host.appendChild(makeOptionRow('', false));
+    host.appendChild(makeOptionRow('', false));
+    host.appendChild(makeOptionRow('', false));
+  }
+
+  function getMcPayload() {
+    const rows = [...document.querySelectorAll('#mcOptions > div')];
+    const options = rows.map(r => r.querySelector('input[type=\"text\"]').value.trim()).filter(Boolean);
+    const correctIdx = rows.findIndex(r => r.querySelector('input[type=\"radio\"]').checked);
+    return { options, correct_index: Math.max(0, correctIdx) };
+  }
+
+  function renderQuestionItem(q) {
+    const li = document.createElement('li');
+    li.className = 'p-4 rounded-xl bg-white/5 border border-white/10 cursor-grab active:cursor-grabbing';
+    li.draggable = true;
+    li.dataset.qid = String(q.id);
+    li.innerHTML = `
+      <div class="flex items-start justify-between gap-4">
+        <div class="min-w-0">
+          <p class="text-xs text-slate-500 mb-1">#${esc(q.order)} • ${esc((q.question_type || '').replace('_',' '))} • ${esc(q.points)} pt</p>
+          <p class="text-white font-medium break-words">${esc(q.question_text)}</p>
+          ${q.question_type === 'multiple_choice' ? `<ul class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-slate-300">${(q.options || []).map(o => `<li class="px-3 py-2 rounded-lg bg-slate-900/40 border border-white/5 ${o === q.correct_answer ? 'ring-1 ring-emerald-500/40':''}">${esc(o)}</li>`).join('')}</ul>` : ''}
+          ${q.question_type === 'true_false' ? `<p class="mt-2 text-sm text-slate-400">Correct: <span class="text-white font-medium">${esc(q.correct_answer)}</span></p>` : ''}
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <button type="button" class="editBtn px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-200 hover:bg-white/10" title="Edit">
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button type="button" class="delBtn px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-200 hover:bg-red-500/15" title="Delete">
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
+      </div>
+    `;
+
+    li.querySelector('.delBtn').addEventListener('click', async () => {
+      if (!confirm('Delete this question?')) return;
+      const resp = await apiFetch(`/quizzes/questions/${q.id}`, { method: 'DELETE' });
+      if (!resp.ok) {
+        alert('Could not delete question.');
+        return;
+      }
+      await loadQuestions();
+    });
+
+    li.querySelector('.editBtn').addEventListener('click', async () => {
+      const newText = prompt('Edit question text', q.question_text || '');
+      if (newText === null) return;
+      const body = { question_text: newText };
+      const resp = await apiFetch(`/quizzes/questions/${q.id}`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        alert('Could not update question.');
+        return;
+      }
+      await loadQuestions();
+    });
+
+    // drag & drop
+    li.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', li.dataset.qid);
+      li.classList.add('ring-2', 'ring-blue-500/30');
+    });
+    li.addEventListener('dragend', () => {
+      li.classList.remove('ring-2', 'ring-blue-500/30');
+    });
+    li.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      li.classList.add('ring-1', 'ring-white/20');
+    });
+    li.addEventListener('dragleave', () => li.classList.remove('ring-1', 'ring-white/20'));
+    li.addEventListener('drop', (e) => {
+      e.preventDefault();
+      li.classList.remove('ring-1', 'ring-white/20');
+      const fromId = e.dataTransfer.getData('text/plain');
+      const fromEl = document.querySelector(`#questionList [data-qid="${CSS.escape(fromId)}"]`);
+      if (!fromEl || fromEl === li) return;
+      const list = document.getElementById('questionList');
+      const rect = li.getBoundingClientRect();
+      const before = (e.clientY - rect.top) < rect.height / 2;
+      list.insertBefore(fromEl, before ? li : li.nextSibling);
+    });
+
+    return li;
+  }
+
+  async function loadQuestions() {
+    const resp = await apiFetch(`/quizzes/${QUIZ_ID}/questions.json`, { method: 'GET' });
+    if (!resp.ok) {
+      alert('Could not load questions.');
+      return;
+    }
+    const data = await resp.json();
+    const list = document.getElementById('questionList');
+    list.innerHTML = '';
+    (data.questions || []).forEach(q => list.appendChild(renderQuestionItem(q)));
+    updateCount((data.questions || []).length);
+  }
+
+  async function createQuestion() {
+    const err = document.getElementById('addError');
+    err.classList.add('hidden');
+    err.textContent = '';
+
+    const question_type = document.getElementById('qType').value;
+    const question_text = document.getElementById('qText').value.trim();
+    const points = parseInt(document.getElementById('qPoints').value || '1', 10);
+    if (!question_text) {
+      err.textContent = 'Question text is required.';
+      err.classList.remove('hidden');
+      return;
+    }
+
+    let payload = { question_type, question_text, points };
+    if (question_type === 'multiple_choice') {
+      const { options, correct_index } = getMcPayload();
+      if (options.length < 2) {
+        err.textContent = 'Multiple choice requires at least 2 non-empty options.';
+        err.classList.remove('hidden');
+        return;
+      }
+      if (options.length > 10) {
+        err.textContent = 'Maximum 10 options.';
+        err.classList.remove('hidden');
+        return;
+      }
+      payload.options = options;
+      payload.correct_index = correct_index;
+    } else {
+      const v = document.querySelector('input[name="tfCorrect"]:checked')?.value || 'True';
+      payload.correct_answer = v;
+    }
+
+    const resp = await apiFetch(`/quizzes/${QUIZ_ID}/questions`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) {
+      const t = await resp.text();
+      err.textContent = t || 'Could not add question.';
+      err.classList.remove('hidden');
+      return;
+    }
+    document.getElementById('qText').value = '';
+    initOptions();
+    await loadQuestions();
+  }
+
+  async function saveOrder() {
+    const ids = [...document.querySelectorAll('#questionList [data-qid]')].map(el => parseInt(el.dataset.qid, 10));
+    const resp = await apiFetch(`/quizzes/${QUIZ_ID}/questions/reorder`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ question_ids: ids }),
+    });
+    if (!resp.ok) {
+      alert('Could not save order.');
+      return;
+    }
+    await loadQuestions();
+  }
+
+  function sampleCsv() {
+    const text = [
+      'question_type,question_text,points,correct_answer,option_1,option_2,option_3,option_4',
+      'multiple_choice,What is 2+2?,1,4,3,4,5,6',
+      'true_false,The earth is flat,1,False,,,,',
+    ].join('\\n');
+    document.getElementById('csvText').value = text;
+  }
+
+  async function importCsv() {
+    const box = document.getElementById('importResult');
+    box.classList.add('hidden');
+    box.textContent = '';
+
+    const csv_text = document.getElementById('csvText').value || '';
+    if (!csv_text.trim()) {
+      box.className = 'mt-3 text-sm rounded-xl p-3 border border-amber-500/20 bg-amber-500/10 text-amber-200';
+      box.textContent = 'Paste some CSV first.';
+      box.classList.remove('hidden');
+      return;
+    }
+
+    const resp = await apiFetch(`/quizzes/${QUIZ_ID}/questions/import_csv`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ csv_text }),
+    });
+    const data = await resp.json().catch(() => null);
+    if (!resp.ok || !data) {
+      box.className = 'mt-3 text-sm rounded-xl p-3 border border-red-500/20 bg-red-500/10 text-red-200';
+      box.textContent = 'Import failed.';
+      box.classList.remove('hidden');
+      return;
+    }
+    if (data.errors && data.errors.length) {
+      box.className = 'mt-3 text-sm rounded-xl p-3 border border-amber-500/20 bg-amber-500/10 text-amber-200';
+      box.textContent = `Imported ${data.added || 0}. Errors: ${data.errors.length}. First: ${data.errors[0]}`;
+    } else {
+      box.className = 'mt-3 text-sm rounded-xl p-3 border border-emerald-500/20 bg-emerald-500/10 text-emerald-200';
+      box.textContent = `Imported ${data.added || 0} questions.`;
+    }
+    box.classList.remove('hidden');
+    await loadQuestions();
+  }
+
+  document.getElementById('createQuestionBtn').addEventListener('click', createQuestion);
+  document.getElementById('saveOrderBtn').addEventListener('click', saveOrder);
+  document.getElementById('refreshBtn').addEventListener('click', loadQuestions);
+  document.getElementById('sampleCsvBtn').addEventListener('click', sampleCsv);
+  document.getElementById('importCsvBtn').addEventListener('click', importCsv);
+
+  document.getElementById('qType').addEventListener('change', () => {
+    const t = document.getElementById('qType').value;
+    document.getElementById('mcPanel').classList.toggle('hidden', t !== 'multiple_choice');
+    document.getElementById('tfPanel').classList.toggle('hidden', t !== 'true_false');
+  });
+
+  document.getElementById('addOptionBtn').addEventListener('click', () => {
+    const host = document.getElementById('mcOptions');
+    const rows = host.querySelectorAll(':scope > div');
+    if (rows.length >= 10) return;
+    host.appendChild(makeOptionRow('', false));
+  });
+
+  initOptions();
+  loadQuestions();
+</script>
+{% endblock %}
+
