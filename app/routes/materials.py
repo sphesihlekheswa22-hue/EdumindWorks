@@ -1,4 +1,5 @@
 import os
+import mimetypes
 from typing import List, Optional, Set, Union
 from werkzeug.utils import secure_filename
 from flask import (
@@ -28,6 +29,7 @@ from app.utils.access_control import (
     is_admin
 )
 from app.services.notification_service import NotificationService
+from app.services import storage_supabase
 
 materials_bp = Blueprint('materials', __name__, url_prefix='/materials')
 
@@ -308,14 +310,31 @@ def upload_material(module_id: int) -> Union[str, redirect]:
                 name, ext = os.path.splitext(filename)
                 filename = f"{name}_{int(app_timestamp())}{ext}"
                 file_path = get_upload_path(module_id, filename)
-            
-            file.save(file_path)
-            
-            # Get file size
-            file_size: int = os.path.getsize(file_path)
+
+            # Persist to storage:
+            # - Prefer Supabase Storage in production (Render free tier disk is ephemeral)
+            # - Fallback to local disk when Supabase not configured
+            file_bytes: Optional[bytes] = None
+            file_size: int = 0
+            stored_ref: Optional[str] = None
+            if storage_supabase.enabled():
+                file_bytes = file.read()
+                file_size = len(file_bytes)
+                key = f"materials/{module_id}/{filename}"
+                storage_supabase.put_bytes(key=key, data=file_bytes)
+                stored_ref = storage_supabase.make_ref(key)
+            else:
+                file.save(file_path)
+                file_size = os.path.getsize(file_path)
             
             if file_size > MAX_FILE_SIZE:
-                os.remove(file_path)
+                if stored_ref:
+                    try:
+                        storage_supabase.delete(stored_ref)
+                    except Exception:
+                        pass
+                elif os.path.exists(file_path):
+                    os.remove(file_path)
                 flash(f'File too large. Maximum size: {MAX_FILE_SIZE // (1024*1024)}MB', 'danger')
                 return redirect(request.url)
             
@@ -328,7 +347,9 @@ def upload_material(module_id: int) -> Union[str, redirect]:
                 module_id=module_id,
                 title=request.form.get('title', '').strip() or filename,
                 description=request.form.get('description', '').strip() or None,
-                file_path=f'/static/uploads/materials/{module_id}/{filename}',
+                # Store a stable reference. If Supabase is enabled, store supabase://bucket/key
+                # otherwise keep the legacy local/static path.
+                file_path=(stored_ref or f'/static/uploads/materials/{module_id}/{filename}'),
                 file_name=filename,
                 file_type=get_file_type(filename),
                 file_size=file_size,
@@ -370,8 +391,13 @@ def upload_material(module_id: int) -> Union[str, redirect]:
         except Exception as e:
             db.session.rollback()
             # Cleanup file if saved
-            if 'file_path' in locals() and os.path.exists(file_path):
-                os.remove(file_path)
+            try:
+                if 'stored_ref' in locals() and stored_ref:
+                    storage_supabase.delete(stored_ref)
+                elif 'file_path' in locals() and os.path.exists(file_path):
+                    os.remove(file_path)
+            except Exception:
+                pass
             
             current_app.logger.error(f'Material upload error: {str(e)}')
             flash('Error uploading material. Please try again.', 'danger')
@@ -406,7 +432,28 @@ def download_material(material_id: int):
         if not material.is_published:
             abort(HTTPStatus.FORBIDDEN)
     
-    # Try multiple ways to locate the file:
+    # Supabase storage ref support (recommended for Render free tier persistence)
+    parsed = storage_supabase.parse_ref(material.file_path or "")
+    if parsed and storage_supabase.enabled():
+        bucket, key = parsed
+        try:
+            data = storage_supabase.get_bytes(material.file_path)
+        except FileNotFoundError:
+            flash("This file is missing in storage (it may have been deleted).", "warning")
+            return redirect(url_for("materials.list_materials", module_id=material.module_id))
+        except Exception:
+            current_app.logger.exception("Supabase download_material failed")
+            flash("Could not download this file right now. Please try again.", "danger")
+            return redirect(url_for("materials.list_materials", module_id=material.module_id))
+
+        from flask import Response
+        download_name = (material.title or material.file_name or "material").strip() or "material"
+        resp = Response(data)
+        resp.headers["Content-Type"] = mimetypes.guess_type(material.file_name or "")[0] or "application/octet-stream"
+        resp.headers["Content-Disposition"] = f'attachment; filename="{download_name}"'
+        return resp
+
+    # Try multiple ways to locate the local file:
     # 1) Current canonical location: <UPLOAD_ROOT>/materials/<module_id>/<file_name>
     # 2) Legacy stored material.file_path (may contain a different module folder)
     abs_path = None

@@ -23,6 +23,9 @@ from app.utils.access_control import (
     can_edit_module_content,
 )
 from app.services.notification_service import NotificationService
+from app.services import storage_supabase
+import mimetypes
+from flask import Response
 
 assignments_bp = Blueprint('assignments', __name__, url_prefix='/assignments')
 
@@ -96,11 +99,18 @@ def _save_assignment_spec_files(assignment: Assignment, files) -> tuple:
         ts = app_now().strftime('%Y%m%d_%H%M%S')
         unique_name = f'{ts}_{saved}_{orig_name}'
         dest = os.path.join(get_specs_upload_dir(assignment.id), unique_name)
-        f.save(dest)
+        stored_ref = None
+        if storage_supabase.enabled():
+            data = f.read()
+            key = f"assignments/specs/{assignment.id}/{unique_name}"
+            storage_supabase.put_bytes(key=key, data=data)
+            stored_ref = storage_supabase.make_ref(key)
+        else:
+            f.save(dest)
         db.session.add(
             AssignmentAttachment(
                 assignment_id=assignment.id,
-                file_path=dest,
+                file_path=(stored_ref or dest),
                 file_name=orig_name,
             )
         )
@@ -288,14 +298,28 @@ def submit(assignment_id):
         timestamp = app_now().strftime('%Y%m%d_%H%M%S')
         unique_filename = f"{assignment.id}_{timestamp}_{filename}"
         file_path = os.path.join(student_dir, unique_filename)
-        file.save(file_path)
+        stored_ref = None
+        if storage_supabase.enabled():
+            data = file.read()
+            key = f"assignments/submissions/{assignment.id}/{student.id}/{unique_filename}"
+            storage_supabase.put_bytes(key=key, data=data)
+            stored_ref = storage_supabase.make_ref(key)
+        else:
+            file.save(file_path)
         
         # Create or update submission
         if existing:
             # Delete old file
-            if existing.file_path and os.path.exists(existing.file_path):
-                os.remove(existing.file_path)
-            existing.file_path = file_path
+            if existing.file_path:
+                parsed = storage_supabase.parse_ref(existing.file_path)
+                if parsed and storage_supabase.enabled():
+                    try:
+                        storage_supabase.delete(existing.file_path)
+                    except Exception:
+                        pass
+                elif os.path.exists(existing.file_path):
+                    os.remove(existing.file_path)
+            existing.file_path = (stored_ref or file_path)
             existing.file_name = filename
             existing.submitted_at = app_now()
             existing.status = 'submitted'
@@ -304,7 +328,7 @@ def submit(assignment_id):
             submission = AssignmentSubmission(
                 assignment_id=assignment_id,
                 student_id=student.id,
-                file_path=file_path,
+                file_path=(stored_ref or file_path),
                 file_name=filename,
                 status='submitted'
             )
@@ -489,6 +513,22 @@ def download_submission(submission_id):
         return redirect(url_for('main.dashboard'))
     
     file_path = submission.file_path
+    parsed = storage_supabase.parse_ref(file_path or "")
+    if parsed and storage_supabase.enabled():
+        try:
+            data = storage_supabase.get_bytes(file_path)
+        except FileNotFoundError:
+            flash('File not found (it may have been moved or deleted).', 'warning')
+            return redirect(url_for('assignments.view_submissions', assignment_id=assignment.id))
+        except Exception:
+            current_app.logger.exception("Supabase download_submission failed")
+            flash('Could not download this file right now. Please try again.', 'danger')
+            return redirect(url_for('assignments.view_submissions', assignment_id=assignment.id))
+
+        resp = Response(data)
+        resp.headers["Content-Type"] = mimetypes.guess_type(submission.file_name or "")[0] or "application/octet-stream"
+        resp.headers["Content-Disposition"] = f'attachment; filename="{submission.file_name or "submission"}"'
+        return resp
     if not file_path or not os.path.exists(file_path):
         # Try to recover from previous upload-folder locations.
         # Keep the filename if the stored path is absolute but root changed.
@@ -542,6 +582,26 @@ def download_assignment_attachment(attachment_id):
         abort(HTTPStatus.FORBIDDEN)
 
     file_path = att.file_path
+    parsed = storage_supabase.parse_ref(file_path or "")
+    if parsed and storage_supabase.enabled():
+        try:
+            data = storage_supabase.get_bytes(file_path)
+        except FileNotFoundError:
+            flash('File not found (it may have been moved or deleted).', 'warning')
+            if current_user.role == 'student':
+                return redirect(url_for('assignments.view', assignment_id=assignment.id))
+            return redirect(url_for('assignments.view_submissions', assignment_id=assignment.id))
+        except Exception:
+            current_app.logger.exception("Supabase download_assignment_attachment failed")
+            flash('Could not download this file right now. Please try again.', 'danger')
+            if current_user.role == 'student':
+                return redirect(url_for('assignments.view', assignment_id=assignment.id))
+            return redirect(url_for('assignments.view_submissions', assignment_id=assignment.id))
+
+        resp = Response(data)
+        resp.headers["Content-Type"] = mimetypes.guess_type(att.file_name or "")[0] or "application/octet-stream"
+        resp.headers["Content-Disposition"] = f'attachment; filename="{att.file_name or "attachment"}"'
+        return resp
     if not file_path or not os.path.isfile(file_path):
         basename = os.path.basename(file_path) if file_path else None
         recovered = None

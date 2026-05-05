@@ -70,6 +70,12 @@ class Config:
     UPLOAD_FOLDER = _upload_alt if os.path.isdir(_upload_alt) else _upload_primary
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB max file size
     ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'ppt', 'pptx', 'txt', 'jpg', 'png', 'jpeg'}
+
+    # Supabase Storage (optional, recommended for Render free tier persistence)
+    SUPABASE_URL = (os.environ.get("SUPABASE_URL") or "").strip()
+    # Use service role key on the server only (never expose to the browser).
+    SUPABASE_SERVICE_ROLE_KEY = (os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or "").strip()
+    SUPABASE_STORAGE_BUCKET = (os.environ.get("SUPABASE_STORAGE_BUCKET") or "uploads").strip() or "uploads"
     
     # NVIDIA API (for AI features) - Using OpenRouter (optional if Ollama is used)
     # Support common Render/env typos (must be an OpenRouter key for https://openrouter.ai — not raw OpenAI)
