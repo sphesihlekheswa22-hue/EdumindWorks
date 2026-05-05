@@ -79,7 +79,8 @@
                 </div>
             </div>
 
-            <form id="quizForm" method="POST" class="space-y-5">
+            <form id="quizForm" method="POST" action="{{ url_for('quizzes.create_quiz', module_id=module.id) }}" class="space-y-5">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <!-- Quiz Title -->
                 <div class="space-y-2">
                     <label class="text-sm font-medium text-slate-300 flex items-center gap-2">
