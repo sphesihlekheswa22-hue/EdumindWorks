@@ -22,7 +22,6 @@ from app.models import (
     Notification, InterventionMessage,
     Assignment, AssignmentAttachment, AssignmentSubmission,
     StaffProfile,
-    OTP,
 )
 
 def _static_dir_candidates() -> list[str]:
@@ -127,7 +126,6 @@ def clear_all_data():
     Notification.query.delete()
     InterventionMessage.query.delete()
     StudentModuleProgress.query.delete()
-    OTP.query.delete()
     StaffProfile.query.delete()
     AssignmentSubmission.query.delete()
     AssignmentAttachment.query.delete()
@@ -740,18 +738,6 @@ def seed_interventions_and_notifications(users, students, lecturers, courses, ma
     return notifications, interventions
 
 
-def seed_otps(users):
-    """Seed a few OTP rows (purpose=password_reset) for testing; not used in normal flow."""
-    print("Seeding OTPs...")
-    otps = []
-    emails = [u.email for u in users if getattr(u, "email", None)]
-    for email in emails[: min(5, len(emails))]:
-        otp = OTP.create_otp(email=email, purpose="password_reset", expires_in_minutes=30)
-        otps.append(otp)
-    db.session.commit()
-    print(f"  Created {len(otps)} OTPs")
-    return otps
-
 def seed_quiz_questions(quizzes):
     """Create quiz questions (every quiz gets at least five; MC uses five options)."""
     print("Seeding Quiz Questions...")
@@ -1172,7 +1158,6 @@ def main():
         chat_messages = seed_chat_messages(chat_sessions)
         cv_reviews = seed_cv_reviews(students)
         risk_scores = seed_risk_scores(students, courses)
-        otps = seed_otps(users)
         notifications, interventions = seed_interventions_and_notifications(
             users=users,
             students=students,
@@ -1211,7 +1196,6 @@ def main():
         print(f"  Chat Messages: {len(chat_messages)}")
         print(f"  CV Reviews: {len(cv_reviews)}")
         print(f"  Risk Scores: {len(risk_scores)}")
-        print(f"  OTPs: {len(otps)}")
         print(f"  Notifications: {len(notifications)}")
         print(f"  Intervention Messages: {len(interventions)}")
 

@@ -38,7 +38,7 @@ class StudentProfileForm(FlaskForm):
 
 
 class StudentCompleteProfileForm(FlaskForm):
-    """First-time profile after registration (OTP): course, photo, 9-digit student number."""
+    """First-time profile after registration: course, photo, 9-digit student number."""
     student_id = StringField(
         'Student number',
         validators=[
@@ -84,28 +84,3 @@ class LecturerProfileForm(FlaskForm):
     specialization = StringField('Specialization', validators=[Optional(), Length(max=200)])
     submit = SubmitField('Save Profile')
 
-
-class ForgotPasswordForm(FlaskForm):
-    """Forgot password form to request reset link."""
-    email = StringField('Email', validators=[DataRequired(), Email()])
-    submit = SubmitField('Send Reset Link')
-
-
-class ResetPasswordForm(FlaskForm):
-    """Reset password form to set new password."""
-    password = PasswordField('New Password', validators=[DataRequired(), Length(min=6)])
-    confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
-    submit = SubmitField('Reset Password')
-
-
-class OTPVerificationForm(FlaskForm):
-    """OTP verification form."""
-    otp_code = StringField('OTP Code', validators=[DataRequired(), Length(min=6, max=6)])
-    submit = SubmitField('Verify OTP')
-    
-    def validate_otp_code(self, otp_code):
-        """Validate OTP code is 6 digits."""
-        if not otp_code.data.isdigit():
-            raise ValidationError('OTP must contain only digits.')
-        if len(otp_code.data) != 6:
-            raise ValidationError('OTP must be exactly 6 digits.')

@@ -4,9 +4,6 @@ from app.forms.auth_forms import (
     StudentProfileForm,
     StudentCompleteProfileForm,
     LecturerProfileForm,
-    ForgotPasswordForm,
-    ResetPasswordForm,
-    OTPVerificationForm
 )
 
 __all__ = [
@@ -14,7 +11,4 @@ __all__ = [
     'StudentProfileForm',
     'StudentCompleteProfileForm',
     'LecturerProfileForm',
-    'ForgotPasswordForm',
-    'ResetPasswordForm',
-    'OTPVerificationForm'
 ]

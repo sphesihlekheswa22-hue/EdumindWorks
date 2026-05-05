@@ -12,11 +12,10 @@ from http import HTTPStatus
 
 from app import db
 from app.utils.app_time import app_now
-from app.models import User, Student, Lecturer, OTP, Course, Enrollment, StaffProfile
+from app.models import User, Student, Lecturer, Course, Enrollment, StaffProfile
 from app.forms.auth_forms import (
     LoginForm,
     StudentProfileForm, StudentCompleteProfileForm, LecturerProfileForm,
-    ForgotPasswordForm, ResetPasswordForm, OTPVerificationForm
 )
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
@@ -24,11 +23,6 @@ auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 def _truthy_env(name: str) -> bool:
     v = (os.environ.get(name) or "").strip().lower()
     return v in {"1", "true", "yes", "y", "on"}
-
-def _should_show_otp_onscreen() -> bool:
-    # Security: never show OTP by default (including in debug).
-    # If you *really* want this for local demos, set SHOW_OTP_ONSCREEN=true explicitly.
-    return _truthy_env("SHOW_OTP_ONSCREEN")
 
 
 def redirect_authenticated_user() -> Optional[str]:
@@ -300,144 +294,36 @@ def profile() -> Union[str, redirect]:
 
 
 @auth_bp.route('/forgot-password', methods=['GET', 'POST'])
-def forgot_password() -> Union[str, redirect]:
-    """Handle forgot password request with OTP verification."""
-    if redirect_to := redirect_authenticated_user():
-        return redirect_to
-    
-    form = ForgotPasswordForm()
-    
-    if form.validate_on_submit():
-        user = User.query.filter_by(email=form.email.data).first()
-        
-        if user:
-            try:
-                # Store email in session for later use
-                from flask import session
-                session['reset_email'] = form.email.data
-                
-                # Generate and send OTP
-                otp = OTP.create_otp(email=form.email.data, purpose='password_reset')
-                db.session.commit()
-                
-                # Send OTP email
-                from app.services.email_service import send_otp_email
-                sent = send_otp_email(form.email.data, otp.otp_code, 'password_reset')
-                if sent:
-                    flash('A verification code has been sent to your email address.', 'success')
-                else:
-                    flash('Failed to send verification email. Please check your email configuration and try again.', 'danger')
-                    return render_template('auth/forgot_password.html', form=form)
-                
-                return redirect(url_for('auth.verify_reset_otp'))
-                
-            except Exception as e:
-                db.session.rollback()
-                current_app.logger.error(f'Forgot password error: {str(e)}')
-                flash('An error occurred. Please try again.', 'danger')
-        else:
-            # Don't reveal if email exists or not for security
-            flash('If an account exists with that email, a verification code has been sent.', 'info')
-            return redirect(url_for('auth.login'))
-    
-    return render_template('auth/forgot_password.html', form=form)
+def forgot_password() -> redirect:
+    """Email-based password reset is disabled."""
+    flash('Password reset via email is disabled. Please contact an administrator.', 'info')
+    return redirect(url_for('auth.login'))
 
 
 @auth_bp.route('/verify-reset-otp', methods=['GET', 'POST'])
-def verify_reset_otp() -> Union[str, redirect]:
-    """Verify OTP for password reset."""
-    if redirect_to := redirect_authenticated_user():
-        return redirect_to
-    
-    # Check if reset email exists in session
-    from flask import session
-    if 'reset_email' not in session:
-        flash('Please enter your email address first.', 'warning')
-        return redirect(url_for('auth.forgot_password'))
-    
-    form = OTPVerificationForm()
-    
-    if form.validate_on_submit():
-        try:
-            email = session['reset_email']
-            
-            # Verify OTP
-            otp = OTP.verify_otp(email, form.otp_code.data, 'password_reset')
-            
-            if not otp:
-                flash('Invalid or expired OTP. Please try again.', 'danger')
-                return render_template('auth/verify_otp.html', form=form, purpose='password_reset')
-            
-            # Mark OTP as used
-            otp.mark_as_used()
-            db.session.commit()
-            
-            # Generate reset token for password reset
-            user = User.query.filter_by(email=email).first()
-            if not user:
-                flash('User not found. Please try again.', 'danger')
-                return redirect(url_for('auth.forgot_password'))
-            
-            token = user.generate_reset_token()
-            db.session.commit()
-            
-            # Clear session data
-            session.pop('reset_email', None)
-            
-            # Redirect to password reset page with token
-            return redirect(url_for('auth.reset_password', token=token))
-            
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.error(f'OTP verification error: {str(e)}')
-            flash('Verification failed. Please try again.', 'danger')
-    
-    return render_template('auth/verify_otp.html', form=form, purpose='password_reset')
+def verify_reset_otp() -> redirect:
+    """Email-based password reset is disabled."""
+    flash('Password reset via email is disabled. Please contact an administrator.', 'info')
+    return redirect(url_for('auth.login'))
 
 
 @auth_bp.route('/reset-password/<token>', methods=['GET', 'POST'])
-def reset_password(token: str) -> Union[str, redirect]:
-    """Handle password reset with token."""
-    if redirect_to := redirect_authenticated_user():
-        return redirect_to
-    
-    # Find user with this token
-    user = User.query.filter_by(reset_token=token).first()
-    
-    if not user or not user.verify_reset_token(token):
-        flash('Invalid or expired reset link. Please request a new one.', 'danger')
-        return redirect(url_for('auth.forgot_password'))
-    
-    form = ResetPasswordForm()
-    
-    if form.validate_on_submit():
-        try:
-            # Set new password
-            user.set_password(form.password.data)
-            user.clear_reset_token()
-            db.session.commit()
-            
-            flash('Your password has been reset successfully. Please login with your new password.', 'success')
-            return redirect(url_for('auth.login'))
-            
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.error(f'Reset password error: {str(e)}')
-            flash('An error occurred. Please try again.', 'danger')
-    
-    return render_template('auth/reset_password.html', form=form, token=token)
+def reset_password(token: str) -> redirect:
+    """Email-based password reset is disabled."""
+    flash('Password reset via email is disabled. Please contact an administrator.', 'info')
+    return redirect(url_for('auth.login'))
 
 
 @auth_bp.route('/verify-email/<token>', methods=['GET'])
 def verify_email(token: str) -> redirect:
-    """Email verification is not used in institutional LMS mode."""
-    flash('Email verification is not required. Use your institutional credentials to log in.', 'info')
+    """Email verification is disabled."""
+    flash('Email verification is disabled in this system.', 'info')
     return redirect(url_for('auth.login'))
 
 
 @auth_bp.route('/resend-verification', methods=['GET', 'POST'])
 @login_required
-def resend_verification() -> Union[str, redirect]:
-    """Email verification is not used in institutional LMS mode."""
-    flash('Email verification is not required in this system.', 'info')
+def resend_verification() -> redirect:
+    """Email verification is disabled."""
+    flash('Email verification is disabled in this system.', 'info')
     return redirect(url_for('main.dashboard'))

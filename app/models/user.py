@@ -21,12 +21,11 @@ class User(db.Model, UserMixin):
     # Notification tracking
     last_notification_read = db.Column(db.DateTime, nullable=True)
     
-    # Password reset
+    # Email/password recovery is disabled in this deployment.
+    # (Database columns may still exist from earlier versions; they are intentionally unused.)
     reset_token = db.Column(db.String(100), nullable=True)
     reset_token_expires_at = db.Column(db.DateTime, nullable=True)
-    
-    # Email verification
-    email_verified = db.Column(db.Boolean, default=False)
+    email_verified = db.Column(db.Boolean, default=True)
     email_verification_token = db.Column(db.String(100), nullable=True)
     email_verification_expires_at = db.Column(db.DateTime, nullable=True)
     
@@ -84,50 +83,7 @@ class User(db.Model, UserMixin):
         """Verify the password."""
         return bcrypt.check_password_hash(self.password_hash, password)
     
-    def generate_reset_token(self):
-        """Generate a password reset token."""
-        import secrets
-        self.reset_token = secrets.token_urlsafe(32)
-        self.reset_token_expires_at = app_now() + timedelta(hours=1)
-        return self.reset_token
-    
-    def verify_reset_token(self, token):
-        """Verify a password reset token."""
-        if self.reset_token != token:
-            return False
-        if self.reset_token_expires_at is None or self.reset_token_expires_at < app_now():
-            return False
-        return True
-    
-    def clear_reset_token(self):
-        """Clear the reset token after password reset."""
-        self.reset_token = None
-        self.reset_token_expires_at = None
-    
-    def generate_email_verification_token(self):
-        """Generate an email verification token."""
-        import secrets
-        self.email_verification_token = secrets.token_urlsafe(32)
-        self.email_verification_expires_at = app_now() + timedelta(hours=24)
-        return self.email_verification_token
-    
-    def verify_email_token(self, token):
-        """Verify an email verification token."""
-        if self.email_verification_token != token:
-            return False
-        if self.email_verification_expires_at is None or self.email_verification_expires_at < app_now():
-            return False
-        return True
-    
-    def clear_email_verification_token(self):
-        """Clear the email verification token after verification."""
-        self.email_verification_token = None
-        self.email_verification_expires_at = None
-    
-    def mark_email_verified(self):
-        """Mark email as verified."""
-        self.email_verified = True
-        self.clear_email_verification_token()
+    # Legacy methods for email verification / password reset were removed.
     
     @property
     def full_name(self):
