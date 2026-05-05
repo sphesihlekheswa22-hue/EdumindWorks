@@ -252,8 +252,10 @@ def create_quiz(module_id: int) -> Union[str, redirect]:
                 flash('Quiz title is required.', 'danger')
                 return render_template('lecturer/quiz_form.html', course=course, module=module)
             
-            time_limit: int = int(request.form.get('time_limit', 30))
-            passing_score: int = int(request.form.get('passing_score', 60))
+            raw_time_limit = (request.form.get('time_limit') or '').strip()
+            raw_passing = (request.form.get('passing_score') or '').strip()
+            time_limit: int = int(raw_time_limit) if raw_time_limit else 30
+            passing_score: int = int(raw_passing) if raw_passing else 60
             
             if not (0 <= passing_score <= 100):
                 raise ValueError("Passing score must be between 0 and 100")
@@ -278,6 +280,7 @@ def create_quiz(module_id: int) -> Union[str, redirect]:
             
         except ValueError as e:
             flash(f'Invalid input: {str(e)}', 'danger')
+            return render_template('lecturer/quiz_form.html', course=course, module=module, action='Create')
         except Exception as e:
             db.session.rollback()
             current_app.logger.error(f'Quiz creation error: {str(e)}')
