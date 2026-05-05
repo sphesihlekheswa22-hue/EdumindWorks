@@ -521,8 +521,38 @@ def edit_quiz(quiz_id: int) -> Union[str, redirect]:
     # Get questions
     questions = QuizQuestion.query.filter_by(quiz_id=quiz_id).order_by(QuizQuestion.order).all()
     
-    # Handle question form submission
+    # Handle quiz updates + question form submission
     if request.method == 'POST':
+        # If the edit form posts quiz fields, update them (enhanced UI)
+        posted_title = request.form.get('title')
+        posted_time_limit = request.form.get('time_limit')
+        posted_passing = request.form.get('passing_score')
+        posted_due = request.form.get('due_date')
+        if posted_title is not None or posted_time_limit is not None or posted_passing is not None or posted_due is not None:
+            try:
+                if posted_title is not None:
+                    t = (posted_title or '').strip()
+                    if t:
+                        quiz.title = t
+                if 'description' in request.form:
+                    quiz.description = (request.form.get('description') or '').strip() or None
+                if posted_time_limit is not None and str(posted_time_limit).strip():
+                    quiz.time_limit = max(1, int(posted_time_limit))
+                if posted_passing is not None and str(posted_passing).strip():
+                    ps = int(posted_passing)
+                    if not (0 <= ps <= 100):
+                        raise ValueError("Passing score must be between 0 and 100")
+                    quiz.passing_score = ps
+                if posted_due is not None:
+                    quiz.due_date = _parse_quiz_due_datetime(posted_due)
+                db.session.commit()
+                flash('Quiz updated successfully!', 'success')
+            except Exception as e:
+                db.session.rollback()
+                current_app.logger.error(f'Quiz update error: {str(e)}')
+                flash('Could not update quiz. Please check your inputs.', 'danger')
+            return redirect(url_for('quizzes.edit_quiz', quiz_id=quiz_id))
+
         question_text = request.form.get('question_text', '').strip()
         if question_text:
             question_type = request.form.get('question_type', 'multiple_choice')
