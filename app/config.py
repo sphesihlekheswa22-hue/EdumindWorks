@@ -36,7 +36,26 @@ class Config:
         )
         SQLALCHEMY_DATABASE_URI = 'sqlite:///' + sqlite_db_path
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ENGINE_OPTIONS = {}
+    # On Render/managed Postgres, SSL connections can be dropped while pooled.
+    # Pre-ping + recycle prevents "SSL connection has been closed unexpectedly" on first query.
+    _is_postgres = SQLALCHEMY_DATABASE_URI.startswith("postgresql://")
+    if _is_postgres:
+        SQLALCHEMY_ENGINE_OPTIONS = {
+            "pool_pre_ping": True,
+            "pool_recycle": int(os.environ.get("DB_POOL_RECYCLE_SECONDS", "280")),
+            "pool_timeout": int(os.environ.get("DB_POOL_TIMEOUT_SECONDS", "30")),
+            "pool_size": int(os.environ.get("DB_POOL_SIZE", "5")),
+            "max_overflow": int(os.environ.get("DB_MAX_OVERFLOW", "5")),
+            "connect_args": {
+                # TCP keepalives help long-lived SSL links in some networks.
+                "keepalives": 1,
+                "keepalives_idle": int(os.environ.get("DB_KEEPALIVES_IDLE", "30")),
+                "keepalives_interval": int(os.environ.get("DB_KEEPALIVES_INTERVAL", "10")),
+                "keepalives_count": int(os.environ.get("DB_KEEPALIVES_COUNT", "5")),
+            },
+        }
+    else:
+        SQLALCHEMY_ENGINE_OPTIONS = {}
     
     # Session
     SESSION_TYPE = 'filesystem'
