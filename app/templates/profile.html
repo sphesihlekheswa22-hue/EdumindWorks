@@ -109,10 +109,6 @@
                 <i class="bi bi-pencil"></i>
                 Edit Profile
             </button>
-            <button onclick="changePassword()" class="px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 transition-all flex items-center gap-2">
-                <i class="bi bi-shield-lock"></i>
-                Security
-            </button>
         </div>
     </div>
 </div>
@@ -124,9 +120,6 @@
     </button>
     <button onclick="switchTab('academic')" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white transition-all" data-tab="academic">
         <i class="bi bi-mortarboard mr-2"></i>Academic Info
-    </button>
-    <button onclick="switchTab('security')" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white transition-all" data-tab="security">
-        <i class="bi bi-shield mr-2"></i>Security
     </button>
     <button onclick="switchTab('activity')" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white transition-all" data-tab="activity">
         <i class="bi bi-activity mr-2"></i>Activity
@@ -370,136 +363,6 @@
         </div>
     </div>
 
-    <!-- Security Tab -->
-    <div id="securityTab" class="tab-content hidden">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Change Password -->
-            <div class="bento-item glass-card p-6">
-                <div class="flex items-center gap-3 mb-6">
-                    <div class="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
-                        <i class="bi bi-key text-red-400"></i>
-                    </div>
-                    <h3 class="font-display font-semibold text-lg">Change Password</h3>
-                </div>
-
-                <form id="passwordForm" class="space-y-4">
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium text-slate-300">Current Password</label>
-                        <div class="relative">
-                            <input type="password" id="currentPassword" required
-                                   class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-white pl-10 pr-10 transition-all"
-                                   placeholder="••••••••">
-                            <i class="bi bi-lock absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
-                            <button type="button" onclick="togglePassword('currentPassword')" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
-                                <i class="bi bi-eye-slash"></i>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium text-slate-300">New Password</label>
-                        <div class="relative">
-                            <input type="password" id="newPassword" required
-                                   class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-white pl-10 pr-10 transition-all"
-                                   placeholder="••••••••">
-                            <i class="bi bi-lock absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
-                            <button type="button" onclick="togglePassword('newPassword')" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
-                                <i class="bi bi-eye-slash"></i>
-                            </button>
-                        </div>
-                        <div class="flex gap-1 mt-2">
-                            <div class="h-1 flex-1 rounded-full bg-white/10 password-strength" id="strength1"></div>
-                            <div class="h-1 flex-1 rounded-full bg-white/10 password-strength" id="strength2"></div>
-                            <div class="h-1 flex-1 rounded-full bg-white/10 password-strength" id="strength3"></div>
-                            <div class="h-1 flex-1 rounded-full bg-white/10 password-strength" id="strength4"></div>
-                        </div>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium text-slate-300">Confirm New Password</label>
-                        <div class="relative">
-                            <input type="password" id="confirmPassword" required
-                                   class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-white pl-10 transition-all"
-                                   placeholder="••••••••">
-                            <i class="bi bi-lock-fill absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
-                        </div>
-                    </div>
-
-                    <button type="submit" 
-                            class="w-full py-3 rounded-xl bg-gradient-to-r from-red-500 to-pink-600 text-white font-semibold shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all flex items-center justify-center gap-2">
-                        <i class="bi bi-shield-lock"></i>
-                        Update Password
-                    </button>
-                </form>
-            </div>
-
-            <!-- Security Settings -->
-            <div class="bento-item glass-card p-6">
-                <div class="flex items-center gap-3 mb-6">
-                    <div class="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                        <i class="bi bi-shield-check text-emerald-400"></i>
-                    </div>
-                    <h3 class="font-display font-semibold text-lg">Security Settings</h3>
-                </div>
-
-                <div class="space-y-4">
-                    <div class="security-item flex items-center justify-between p-4 rounded-xl bg-white/5 cursor-pointer" onclick="toggleSetting(this)">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                                <i class="bi bi-phone text-blue-400"></i>
-                            </div>
-                            <div>
-                                <p class="font-medium text-white">Two-Factor Authentication</p>
-                                <p class="text-xs text-slate-400">Add extra security to your account</p>
-                            </div>
-                        </div>
-                        <div class="w-12 h-6 rounded-full bg-slate-700 relative transition-colors toggle-switch">
-                            <div class="w-5 h-5 rounded-full bg-white absolute top-0.5 left-0.5 transition-transform"></div>
-                        </div>
-                    </div>
-
-                    <div class="security-item flex items-center justify-between p-4 rounded-xl bg-white/5 cursor-pointer" onclick="toggleSetting(this)">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                                <i class="bi bi-envelope text-purple-400"></i>
-                            </div>
-                            <div>
-                                <p class="font-medium text-white">Email Notifications</p>
-                                <p class="text-xs text-slate-400">Get alerts for important updates</p>
-                            </div>
-                        </div>
-                        <div class="w-12 h-6 rounded-full bg-blue-500 relative transition-colors toggle-switch">
-                            <div class="w-5 h-5 rounded-full bg-white absolute top-0.5 left-0.5 transition-transform translate-x-6"></div>
-                        </div>
-                    </div>
-
-                    <div class="security-item flex items-center justify-between p-4 rounded-xl bg-white/5 cursor-pointer" onclick="toggleSetting(this)">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
-                                <i class="bi bi-eye-slash text-amber-400"></i>
-                            </div>
-                            <div>
-                                <p class="font-medium text-white">Profile Visibility</p>
-                                <p class="text-xs text-slate-400">Make profile visible to other students</p>
-                            </div>
-                        </div>
-                        <div class="w-12 h-6 rounded-full bg-slate-700 relative transition-colors toggle-switch">
-                            <div class="w-5 h-5 rounded-full bg-white absolute top-0.5 left-0.5 transition-transform"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="mt-6 pt-6 border-t border-white/10">
-                    <button onclick="showLoginHistory()" 
-                            class="w-full py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 transition-all flex items-center justify-center gap-2">
-                        <i class="bi bi-clock-history"></i>
-                        View Login History
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Activity Tab -->
     <div id="activityTab" class="tab-content hidden">
         <div class="bento-item glass-card p-6">
@@ -557,43 +420,6 @@
         });
     }
 
-    // Toggle password visibility
-    function togglePassword(fieldId) {
-        const input = document.getElementById(fieldId);
-        const icon = event.target.closest('button').querySelector('i');
-        
-        if (input.type === 'password') {
-            input.type = 'text';
-            icon.classList.remove('bi-eye-slash');
-            icon.classList.add('bi-eye');
-        } else {
-            input.type = 'password';
-            icon.classList.remove('bi-eye');
-            icon.classList.add('bi-eye-slash');
-        }
-    }
-
-    // Password strength indicator
-    document.getElementById('newPassword')?.addEventListener('input', function(e) {
-        const password = e.target.value;
-        const bars = document.querySelectorAll('.password-strength');
-        
-        let strength = 0;
-        if (password.length >= 8) strength++;
-        if (password.match(/[a-z]/) && password.match(/[A-Z]/)) strength++;
-        if (password.match(/\d/)) strength++;
-        if (password.match(/[^a-zA-Z\d]/)) strength++;
-        
-        bars.forEach((bar, index) => {
-            if (index < strength) {
-                bar.className = 'h-1 flex-1 rounded-full password-strength ' + 
-                    (strength <= 2 ? 'bg-amber-500' : strength === 3 ? 'bg-blue-500' : 'bg-emerald-500');
-            } else {
-                bar.className = 'h-1 flex-1 rounded-full bg-white/10 password-strength';
-            }
-        });
-    });
-
     // Toggle settings
     function toggleSetting(element) {
         const switchEl = element.querySelector('.toggle-switch');
@@ -609,20 +435,6 @@
             knob.classList.add('translate-x-6');
         }
     }
-
-    // Form submissions
-    document.getElementById('passwordForm')?.addEventListener('submit', function(e) {
-        e.preventDefault();
-        const newPass = document.getElementById('newPassword').value;
-        const confirmPass = document.getElementById('confirmPassword').value;
-        
-        if (newPass !== confirmPass) {
-            showToast('Passwords do not match!', 'error');
-            return;
-        }
-        
-        showToast('Password updated successfully!', 'success');
-    });
 
     // Toast notification
     function showToast(message, type = 'success') {
@@ -654,11 +466,6 @@
     function editProfile() {
         switchTab('overview');
         document.querySelector('input[name="bio"]')?.focus();
-    }
-
-    function changePassword() {
-        switchTab('security');
-        document.getElementById('currentPassword')?.focus();
     }
 
     function showLoginHistory() {
