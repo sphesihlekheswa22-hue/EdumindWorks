@@ -5,35 +5,263 @@
 {% block page_title %}Edit User{% endblock %}
 
 {% block content %}
-<div class="glass-card rounded-2xl p-6">
-    <form method="POST">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-                <label for="full_name" class="block text-sm font-medium text-slate-300 mb-2">Full Name</label>
-                <input type="text" id="full_name" name="full_name" value="{{ user.full_name }}" class="w-full bg-slate-900/50 border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all">
+<div class="max-w-4xl mx-auto">
+    <!-- Header Section -->
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <p class="text-slate-400 text-sm mt-1">Update user information and permissions</p>
+        </div>
+        <a href="{{ url_for('admin.users') }}" class="text-sm text-slate-400 hover:text-white transition-colors flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+            </svg>
+            Back to Users
+        </a>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="mb-4 p-4 rounded-xl border {{ 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' if category == 'success' else 'bg-red-500/10 border-red-500/20 text-red-400' }} flex items-center gap-3 animate-fade-in">
+                    {% if category == 'success' %}
+                        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                    {% else %}
+                        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    {% endif %}
+                    <span class="text-sm font-medium">{{ message }}</span>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Main Form Card -->
+    <div class="glass-card rounded-2xl p-8 border border-white/10 shadow-2xl shadow-black/20">
+        <!-- User Avatar & Info Header -->
+        <div class="flex items-center gap-4 mb-8 pb-6 border-b border-white/5">
+            <div class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-blue-500/20">
+                {{ user.full_name[:1].upper() if user.full_name else '?' }}
             </div>
             <div>
-                <label for="email" class="block text-sm font-medium text-slate-300 mb-2">Email</label>
-                <input type="email" id="email" name="email" value="{{ user.email }}" class="w-full bg-slate-900/50 border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all">
-            </div>
-            <div>
-                <label for="role" class="block text-sm font-medium text-slate-300 mb-2">Role</label>
-                <select id="role" name="role" class="w-full bg-slate-900/50 border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all">
-                    <option value="student" {% if user.role == 'student' %}selected{% endif %}>Student</option>
-                    <option value="lecturer" {% if user.role == 'lecturer' %}selected{% endif %}>Lecturer</option>
-                    <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
-                    <option value="career_advisor" {% if user.role == 'career_advisor' %}selected{% endif %}>Career Advisor</option>
-                </select>
-            </div>
-            <div class="flex items-center">
-                <input type="checkbox" id="is_active" name="is_active" {% if user.is_active %}checked{% endif %} class="rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500/20">
-                <label for="is_active" class="ml-2 text-sm text-slate-300">Active</label>
+                <h2 class="text-lg font-semibold text-white">{{ user.full_name or 'Unnamed User' }}</h2>
+                <p class="text-sm text-slate-400">{{ user.email }}</p>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-2 
+                    {{ 'bg-blue-500/10 text-blue-400 border border-blue-500/20' if user.role == 'admin' 
+                    else 'bg-purple-500/10 text-purple-400 border border-purple-500/20' if user.role == 'lecturer'
+                    else 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' if user.role == 'career_advisor'
+                    else 'bg-slate-500/10 text-slate-400 border border-slate-500/20' }}">
+                    {{ user.role.replace('_', ' ').title() }}
+                </span>
             </div>
         </div>
-        <div class="mt-6 flex justify-end">
-            <button type="submit" class="px-6 py-3 bg-blue-500/20 text-blue-400 rounded-xl hover:bg-blue-500/30 transition-all border border-blue-500/30">Save Changes</button>
-        </div>
-    </form>
+
+        <form method="POST" id="editUserForm" class="space-y-6">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            
+            <!-- Form Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Full Name -->
+                <div class="form-group">
+                    <label for="full_name" class="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
+                        <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                        </svg>
+                        Full Name
+                    </label>
+                    <input type="text" id="full_name" name="full_name" value="{{ user.full_name }}" 
+                        class="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 
+                        focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 focus:bg-slate-900/80 
+                        transition-all duration-200 hover:border-white/20"
+                        placeholder="Enter full name" required>
+                </div>
+
+                <!-- Email -->
+                <div class="form-group">
+                    <label for="email" class="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
+                        <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"/>
+                        </svg>
+                        Email Address
+                    </label>
+                    <input type="email" id="email" name="email" value="{{ user.email }}" 
+                        class="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 
+                        focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 focus:bg-slate-900/80 
+                        transition-all duration-200 hover:border-white/20"
+                        placeholder="user@edumind.ai" required>
+                </div>
+
+                <!-- Role Selection -->
+                <div class="form-group">
+                    <label for="role" class="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
+                        <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                        Role
+                    </label>
+                    <div class="relative">
+                        <select id="role" name="role" 
+                            class="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white 
+                            focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 focus:bg-slate-900/80 
+                            transition-all duration-200 hover:border-white/20 appearance-none cursor-pointer">
+                            <option value="student" {% if user.role == 'student' %}selected{% endif %}>Student</option>
+                            <option value="lecturer" {% if user.role == 'lecturer' %}selected{% endif %}>Lecturer</option>
+                            <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
+                            <option value="career_advisor" {% if user.role == 'career_advisor' %}selected{% endif %}>Career Advisor</option>
+                        </select>
+                        <div class="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none">
+                            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <p class="mt-1.5 text-xs text-slate-500" id="roleDescription">Controls user permissions and dashboard access</p>
+                </div>
+
+                <!-- Account Status -->
+                <div class="form-group flex items-end pb-3">
+                    <label class="flex items-center gap-3 cursor-pointer group">
+                        <div class="relative">
+                            <input type="checkbox" id="is_active" name="is_active" {% if user.is_active %}checked{% endif %} 
+                                class="peer sr-only">
+                            <div class="w-12 h-7 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-500/80 shadow-inner"></div>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-sm font-medium text-slate-300 group-hover:text-white transition-colors">Active Account</span>
+                            <span class="text-xs text-slate-500">User can log in and access the platform</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Role Info Banner -->
+            <div id="roleBanner" class="p-4 rounded-xl border border-blue-500/20 bg-blue-500/5 text-sm text-blue-300 flex items-start gap-3 transition-all duration-300">
+                <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span id="roleBannerText">Students can access courses and track progress.</span>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="flex items-center justify-between pt-6 border-t border-white/5">
+                <div class="text-xs text-slate-500">
+                    Last updated: {{ user.updated_at.strftime('%b %d, %Y at %H:%M') if user.updated_at else 'Never' }}
+                </div>
+                <div class="flex items-center gap-3">
+                    <a href="{{ url_for('admin.users') }}" 
+                        class="px-6 py-3 text-sm font-medium text-slate-400 hover:text-white transition-colors">
+                        Cancel
+                    </a>
+                    <button type="submit" id="submitBtn"
+                        class="px-8 py-3 bg-blue-500 hover:bg-blue-400 text-white text-sm font-semibold rounded-xl 
+                        transition-all duration-200 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 
+                        active:scale-95 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        <span id="btnText">Save Changes</span>
+                        <svg id="btnSpinner" class="w-4 h-4 animate-spin hidden" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
 </div>
+
+<style>
+    .animate-fade-in {
+        animation: fadeIn 0.3s ease-out;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .glass-card {
+        background: rgba(30, 41, 59, 0.7);
+        backdrop-filter: blur(12px);
+    }
+    /* Custom scrollbar for select if needed */
+    select option {
+        background: #1e293b;
+        color: white;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('editUserForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const btnText = document.getElementById('btnText');
+        const btnSpinner = document.getElementById('btnSpinner');
+        const roleSelect = document.getElementById('role');
+        const roleBanner = document.getElementById('roleBanner');
+        const roleBannerText = document.getElementById('roleBannerText');
+        const roleDescription = document.getElementById('roleDescription');
+
+        // Role descriptions for banner
+        const roleInfo = {
+            'student': 'Students can access courses, submit assignments, and track their learning progress.',
+            'lecturer': 'Lecturers can create courses, manage content, grade assignments, and view student analytics.',
+            'admin': 'Admins have full access to user management, system settings, and platform configuration.',
+            'career_advisor': 'Career Advisors can view student profiles, provide guidance, and manage career resources.'
+        };
+
+        // Role descriptions for helper text
+        const roleHelper = {
+            'student': 'Standard access to learning materials and assessments',
+            'lecturer': 'Can create and manage course content',
+            'admin': 'Full system administration privileges',
+            'career_advisor': 'Access to student profiles and career tools'
+        };
+
+        // Update banner when role changes
+        roleSelect.addEventListener('change', function() {
+            const selectedRole = this.value;
+            
+            // Update banner text with animation
+            roleBanner.style.opacity = '0';
+            setTimeout(() => {
+                roleBannerText.textContent = roleInfo[selectedRole] || '';
+                roleDescription.textContent = roleHelper[selectedRole] || '';
+                
+                // Update banner color based on role
+                const colors = {
+                    'student': 'border-blue-500/20 bg-blue-500/5 text-blue-300',
+                    'lecturer': 'border-purple-500/20 bg-purple-500/5 text-purple-300',
+                    'admin': 'border-amber-500/20 bg-amber-500/5 text-amber-300',
+                    'career_advisor': 'border-emerald-500/20 bg-emerald-500/5 text-emerald-300'
+                };
+                
+                roleBanner.className = `p-4 rounded-xl border text-sm flex items-start gap-3 transition-all duration-300 ${colors[selectedRole]}`;
+                roleBanner.style.opacity = '1';
+            }, 150);
+        });
+
+        // Loading state on submit
+        form.addEventListener('submit', function(e) {
+            submitBtn.disabled = true;
+            btnText.textContent = 'Saving...';
+            btnSpinner.classList.remove('hidden');
+            submitBtn.classList.add('opacity-75');
+        });
+
+        // Input focus effects
+        const inputs = form.querySelectorAll('input[type="text"], input[type="email"]');
+        inputs.forEach(input => {
+            input.addEventListener('focus', function() {
+                this.parentElement.classList.add('scale-[1.02]');
+                this.parentElement.style.transition = 'transform 0.2s ease';
+            });
+            input.addEventListener('blur', function() {
+                this.parentElement.classList.remove('scale-[1.02]');
+            });
+        });
+    });
+</script>
 {% endblock %}
