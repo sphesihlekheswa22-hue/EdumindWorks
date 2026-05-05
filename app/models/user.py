@@ -21,14 +21,6 @@ class User(db.Model, UserMixin):
     # Notification tracking
     last_notification_read = db.Column(db.DateTime, nullable=True)
     
-    # Email/password recovery is disabled in this deployment.
-    # (Database columns may still exist from earlier versions; they are intentionally unused.)
-    reset_token = db.Column(db.String(100), nullable=True)
-    reset_token_expires_at = db.Column(db.DateTime, nullable=True)
-    email_verified = db.Column(db.Boolean, default=True)
-    email_verification_token = db.Column(db.String(100), nullable=True)
-    email_verification_expires_at = db.Column(db.DateTime, nullable=True)
-    
     # Relationships
     student = db.relationship('Student', backref='user', uselist=False, lazy=True, cascade="all, delete-orphan")
     lecturer = db.relationship('Lecturer', back_populates='user', uselist=False, lazy=True, cascade="all, delete-orphan")

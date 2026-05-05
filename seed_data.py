@@ -159,27 +159,27 @@ def seed_users():
 
     users_data = [
         # Admin
-        {'email': 'admin@edumind.com', 'first_name': 'System', 'last_name': 'Admin', 'role': 'admin', 'password': 'admin123', 'email_verified': True},
+        {'email': 'admin@edumind.com', 'first_name': 'System', 'last_name': 'Admin', 'role': 'admin', 'password': 'admin123'},
         
         # Career Advisor
-        {'email': 'career@edumind.com', 'first_name': 'Sarah', 'last_name': 'Johnson', 'role': 'career_advisor', 'password': 'career123', 'email_verified': True},
+        {'email': 'career@edumind.com', 'first_name': 'Sarah', 'last_name': 'Johnson', 'role': 'career_advisor', 'password': 'career123'},
         
         # Lecturers
-        {'email': 'john.smith@edumind.com', 'first_name': 'John', 'last_name': 'Smith', 'role': 'lecturer', 'password': 'lecturer123', 'email_verified': True},
-        {'email': 'emily.davis@edumind.com', 'first_name': 'Emily', 'last_name': 'Davis', 'role': 'lecturer', 'password': 'lecturer123', 'email_verified': True},
-        {'email': 'michael.brown@edumind.com', 'first_name': 'Michael', 'last_name': 'Brown', 'role': 'lecturer', 'password': 'lecturer123', 'email_verified': True},
-        {'email': 'jennifer.wilson@edumind.com', 'first_name': 'Jennifer', 'last_name': 'Wilson', 'role': 'lecturer', 'password': 'lecturer123', 'email_verified': True},
-        {'email': 'david.lee@edumind.com', 'first_name': 'David', 'last_name': 'Lee', 'role': 'lecturer', 'password': 'lecturer123', 'email_verified': True},
+        {'email': 'john.smith@edumind.com', 'first_name': 'John', 'last_name': 'Smith', 'role': 'lecturer', 'password': 'lecturer123'},
+        {'email': 'emily.davis@edumind.com', 'first_name': 'Emily', 'last_name': 'Davis', 'role': 'lecturer', 'password': 'lecturer123'},
+        {'email': 'michael.brown@edumind.com', 'first_name': 'Michael', 'last_name': 'Brown', 'role': 'lecturer', 'password': 'lecturer123'},
+        {'email': 'jennifer.wilson@edumind.com', 'first_name': 'Jennifer', 'last_name': 'Wilson', 'role': 'lecturer', 'password': 'lecturer123'},
+        {'email': 'david.lee@edumind.com', 'first_name': 'David', 'last_name': 'Lee', 'role': 'lecturer', 'password': 'lecturer123'},
         
         # Students
-        {'email': 'alex.thompson@student.edumind.com', 'first_name': 'Alex', 'last_name': 'Thompson', 'role': 'student', 'password': 'student123', 'email_verified': True},
-        {'email': 'sophia.martinez@student.edumind.com', 'first_name': 'Sophia', 'last_name': 'Martinez', 'role': 'student', 'password': 'student123', 'email_verified': True},
-        {'email': 'lucas.anderson@student.edumind.com', 'first_name': 'Lucas', 'last_name': 'Anderson', 'role': 'student', 'password': 'student123', 'email_verified': True},
-        {'email': 'olivia.taylor@student.edumind.com', 'first_name': 'Olivia', 'last_name': 'Taylor', 'role': 'student', 'password': 'student123', 'email_verified': True},
-        {'email': 'noah.white@student.edumind.com', 'first_name': 'Noah', 'last_name': 'White', 'role': 'student', 'password': 'student123', 'email_verified': True},
-        {'email': 'emma.harris@student.edumind.com', 'first_name': 'Emma', 'last_name': 'Harris', 'role': 'student', 'password': 'student123', 'email_verified': True},
-        {'email': 'liam.clark@student.edumind.com', 'first_name': 'Liam', 'last_name': 'Clark', 'role': 'student', 'password': 'student123', 'email_verified': True},
-        {'email': 'ava.lewis@student.edumind.com', 'first_name': 'Ava', 'last_name': 'Lewis', 'role': 'student', 'password': 'student123', 'email_verified': True},
+        {'email': 'alex.thompson@student.edumind.com', 'first_name': 'Alex', 'last_name': 'Thompson', 'role': 'student', 'password': 'student123'},
+        {'email': 'sophia.martinez@student.edumind.com', 'first_name': 'Sophia', 'last_name': 'Martinez', 'role': 'student', 'password': 'student123'},
+        {'email': 'lucas.anderson@student.edumind.com', 'first_name': 'Lucas', 'last_name': 'Anderson', 'role': 'student', 'password': 'student123'},
+        {'email': 'olivia.taylor@student.edumind.com', 'first_name': 'Olivia', 'last_name': 'Taylor', 'role': 'student', 'password': 'student123'},
+        {'email': 'noah.white@student.edumind.com', 'first_name': 'Noah', 'last_name': 'White', 'role': 'student', 'password': 'student123'},
+        {'email': 'emma.harris@student.edumind.com', 'first_name': 'Emma', 'last_name': 'Harris', 'role': 'student', 'password': 'student123'},
+        {'email': 'liam.clark@student.edumind.com', 'first_name': 'Liam', 'last_name': 'Clark', 'role': 'student', 'password': 'student123'},
+        {'email': 'ava.lewis@student.edumind.com', 'first_name': 'Ava', 'last_name': 'Lewis', 'role': 'student', 'password': 'student123'},
         {'email': 'mason.walker@student.edumind.com', 'first_name': 'Mason', 'last_name': 'Walker', 'role': 'student', 'password': 'student123'},
         {'email': 'isabella.hall@student.edumind.com', 'first_name': 'Isabella', 'last_name': 'Hall', 'role': 'student', 'password': 'student123'},
         {'email': 'james.allen@student.edumind.com', 'first_name': 'James', 'last_name': 'Allen', 'role': 'student', 'password': 'student123'},

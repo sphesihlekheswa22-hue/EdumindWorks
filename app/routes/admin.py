@@ -90,8 +90,7 @@ def users() -> str:
                 last_name=last_name,
                 email=email,
                 role=role,
-                is_active=True,
-                email_verified=True
+                is_active=True
             )
             user.set_password(password)
             db.session.add(user)
@@ -215,9 +214,6 @@ def edit_user(user_id: int) -> str:
         user.role = request.form.get('role')
         user.is_active = 'is_active' in request.form
 
-        db.session.commit()
-        # Email verification is disabled; we never block access based on email changes.
-        user.email_verified = True
         db.session.commit()
         flash('User updated successfully!', 'success')
 
