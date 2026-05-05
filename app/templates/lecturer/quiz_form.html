@@ -349,11 +349,58 @@
                 </div>
             </div>
         </div>
+
+        <!-- Mobile Preview (shown on small screens) -->
+        <div class="lg:hidden bento-item glass-card p-6 animate-slide-up">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                    <i class="bi bi-eye text-purple-400"></i>
+                </div>
+                <h3 class="font-display font-semibold text-lg">Live Preview</h3>
+            </div>
+
+            <div class="preview-card p-4 rounded-xl bg-white/5 border border-white/10 space-y-4">
+                <div class="border-b border-white/10 pb-4">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-300" id="previewTypeMobile">Graded</span>
+                        <span class="px-2 py-0.5 rounded text-xs font-medium bg-amber-500/20 text-amber-300" id="previewPointsMobile">0 points</span>
+                    </div>
+                    <h4 class="font-semibold text-white text-lg" id="previewTitleMobile">Untitled Quiz</h4>
+                    <p class="text-sm text-slate-400 mt-1 line-clamp-2" id="previewDescriptionMobile">No description provided</p>
+                </div>
+
+                <div class="space-y-2 text-sm">
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400 flex items-center gap-2"><i class="bi bi-clock"></i> Time Limit</span>
+                        <span class="text-white" id="previewTimeMobile">30 min</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400 flex items-center gap-2"><i class="bi bi-check-circle"></i> Passing Score</span>
+                        <span class="text-white" id="previewPassingMobile">60%</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400 flex items-center gap-2"><i class="bi bi-arrow-repeat"></i> Attempts</span>
+                        <span class="text-white" id="previewAttemptsMobile">3</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400 flex items-center gap-2"><i class="bi bi-calendar"></i> Due Date</span>
+                        <span class="text-white" id="previewDueMobile">Not set</span>
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-white/10">
+                    <div class="flex items-center gap-2 text-xs text-slate-500">
+                        <i class="bi bi-info-circle"></i>
+                        <span>This is how students will see your quiz</span>
+                    </div>
+                </div>
+            </div>
+        </div>
         </form>
     </div>
 
     <!-- Live Preview Sidebar -->
-    <div class="lg:col-span-1">
+    <div class="hidden lg:block lg:col-span-1">
         <div class="bento-item glass-card p-6 sticky top-6 animate-slide-up" style="animation-delay: 0.2s">
             <div class="flex items-center gap-3 mb-4">
                 <div class="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
@@ -532,6 +579,18 @@
         document.getElementById('previewPassing').textContent = passing + '%';
         document.getElementById('previewAttempts').textContent = attempts === 'unlimited' ? 'Unlimited' : attempts;
         document.getElementById('previewDue').textContent = dueDate ? new Date(dueDate).toLocaleDateString() : 'Not set';
+
+        // Mobile preview (if present)
+        const ptm = document.getElementById('previewTitleMobile');
+        if (ptm) {
+            document.getElementById('previewTitleMobile').textContent = title;
+            document.getElementById('previewDescriptionMobile').textContent = description;
+            document.getElementById('previewTypeMobile').textContent = type.charAt(0).toUpperCase() + type.slice(1);
+            document.getElementById('previewTimeMobile').textContent = time + ' min';
+            document.getElementById('previewPassingMobile').textContent = passing + '%';
+            document.getElementById('previewAttemptsMobile').textContent = attempts === 'unlimited' ? 'Unlimited' : attempts;
+            document.getElementById('previewDueMobile').textContent = dueDate ? new Date(dueDate).toLocaleDateString() : 'Not set';
+        }
 
         // Update character count
         document.getElementById('charCount').textContent = `${description.length}/500`;
