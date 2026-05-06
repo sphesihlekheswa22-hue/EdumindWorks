@@ -62,7 +62,9 @@ class Config:
     SESSION_TYPE = 'filesystem'
     # Ensure a writable session dir on Render/Linux (repo paths may be read-only or wiped).
     SESSION_FILE_DIR = (os.environ.get("SESSION_FILE_DIR") or os.path.join(tempfile.gettempdir(), "edumind_flask_session")).strip()
-    SESSION_USE_SIGNER = True
+    # Flask-Session signer can return bytes in some versions, which breaks cookie setting on Werkzeug.
+    # Keep it off to avoid `TypeError: cannot use a string pattern on a bytes-like object` in production.
+    SESSION_USE_SIGNER = False
     SESSION_PERMANENT = True
     PERMANENT_SESSION_LIFETIME = timedelta(days=7)
     
