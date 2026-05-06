@@ -157,19 +157,19 @@
                 {% endif %}
             </div>
             {% endfor %}
-            
-            <!-- Typing Indicator (Hidden by default) -->
-            <div id="typingIndicator" class="hidden flex justify-start">
-                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0 mr-3">
-                    <i class="bi bi-robot text-sm text-white"></i>
-                </div>
-                <div class="glass-card rounded-2xl p-4 flex items-center gap-1">
-                    <span class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0s"></span>
-                    <span class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
-                    <span class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.4s"></span>
-                </div>
-            </div>
         {% endif %}
+
+        <!-- Typing Indicator (always present; hidden by default) -->
+        <div id="typingIndicator" class="hidden flex justify-start">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0 mr-3">
+                <i class="bi bi-robot text-sm text-white"></i>
+            </div>
+            <div class="glass-card rounded-2xl p-4 flex items-center gap-1">
+                <span class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0s"></span>
+                <span class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
+                <span class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.4s"></span>
+            </div>
+        </div>
     </div>
 
     <!-- Input Area -->
@@ -342,7 +342,7 @@
     }
     
     function resetChatInputState() {
-        typingIndicator.classList.add('hidden');
+        if (typingIndicator) typingIndicator.classList.add('hidden');
         messageInput.disabled = false;
         document.getElementById('sendButton').disabled = messageInput.value.trim().length === 0;
     }
@@ -353,7 +353,7 @@
         const text = messageInput.value.trim();
         if (!text) return;
 
-        typingIndicator.classList.remove('hidden');
+        if (typingIndicator) typingIndicator.classList.remove('hidden');
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
         messageInput.disabled = true;
         document.getElementById('sendButton').disabled = true;
