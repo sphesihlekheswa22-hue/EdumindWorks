@@ -445,6 +445,10 @@ function closeInterventionModal() {
 }
 
 function intervene(studentId, name, risk, courseId = null) { 
+    // Be resilient if user clicks before DOMContentLoaded init.
+    if (!notificationSystem) {
+        try { notificationSystem = new NotificationSystem(); } catch (e) { /* ignore */ }
+    }
     if (notificationSystem) notificationSystem.intervene(studentId, name, risk, courseId); 
 }
 
