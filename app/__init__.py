@@ -254,4 +254,37 @@ def create_app(config_name='default'):
         except Exception:
             logger.exception("Could not apply quizzes.time_limit_seconds schema patch")
 
+    # Postgres/SQLite: add courses.lecturer_id if missing (no-op if already present).
+    # This keeps deployments resilient when we add small schema fields without migrations.
+    with app.app_context():
+        try:
+            from sqlalchemy import inspect, text
+            insp = inspect(db.engine)
+            if "courses" in insp.get_table_names():
+                col_names = {c["name"] for c in insp.get_columns("courses")}
+                if "lecturer_id" not in col_names:
+                    with db.engine.begin() as conn:
+                        # FK is optional in SQLite; Postgres will enforce it.
+                        try:
+                            conn.execute(
+                                text(
+                                    "ALTER TABLE courses "
+                                    "ADD COLUMN lecturer_id BIGINT NULL REFERENCES lecturers(id) ON DELETE SET NULL"
+                                )
+                            )
+                        except Exception:
+                            # SQLite fallback (no FK support in ALTER TABLE)
+                            conn.execute(
+                                text("ALTER TABLE courses ADD COLUMN lecturer_id BIGINT")
+                            )
+
+                        # Index is best-effort; ignore if unsupported.
+                        try:
+                            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_courses_lecturer_id ON courses(lecturer_id)"))
+                        except Exception:
+                            pass
+                    logger.info("Added courses.lecturer_id column")
+        except Exception:
+            logger.exception("Could not apply courses.lecturer_id schema patch")
+
     return app
