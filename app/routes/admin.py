@@ -321,6 +321,13 @@ def delete_course(course_id: int) -> str:
 @admin_required
 def add_course() -> str:
     """Add a new course."""
+    from app.models.lecturer import Lecturer
+    from app.models.user import User
+    lecturers = (
+        Lecturer.query.join(User, Lecturer.user_id == User.id)
+        .order_by(User.first_name.asc(), User.last_name.asc())
+        .all()
+    )
     if request.method == 'POST':
         try:
             code = (request.form.get('code') or '').strip().upper()
@@ -329,10 +336,17 @@ def add_course() -> str:
             credits = request.form.get('credits', type=int) or 3
             semester = (request.form.get('semester') or '').strip() or None
             year = request.form.get('year', type=int)
+            lecturer_id = request.form.get('lecturer_id', type=int)
 
             if not code or not name:
                 flash('Course code and name are required.', 'danger')
                 return redirect(url_for('admin.add_course'))
+
+            if lecturer_id:
+                lecturer = Lecturer.query.get(lecturer_id)
+                if not lecturer or not lecturer.user or lecturer.user.role != 'lecturer':
+                    flash('Invalid lecturer selected.', 'danger')
+                    return redirect(url_for('admin.add_course'))
 
             new_course = Course(
                 name=name,
@@ -341,6 +355,7 @@ def add_course() -> str:
                 credits=credits,
                 semester=semester,
                 year=year,
+                lecturer_id=lecturer_id or None,
                 is_active='is_active' in request.form
             )
             db.session.add(new_course)
@@ -351,7 +366,7 @@ def add_course() -> str:
             db.session.rollback()
             current_app.logger.error(f'Error adding course: {str(e)}')
             flash('An error occurred. Please try again.', 'danger')
-    return render_template('course_form.html', action='Add', course=None)
+    return render_template('course_form.html', action='Add', course=None, lecturers=lecturers)
 
 
 @admin_bp.route('/courses/<int:course_id>/edit', methods=['GET', 'POST'])
@@ -359,6 +374,13 @@ def add_course() -> str:
 @admin_required
 def edit_course(course_id: int) -> str:
     """Edit an existing course."""
+    from app.models.lecturer import Lecturer
+    from app.models.user import User
+    lecturers = (
+        Lecturer.query.join(User, Lecturer.user_id == User.id)
+        .order_by(User.first_name.asc(), User.last_name.asc())
+        .all()
+    )
     course = Course.query.get_or_404(course_id)
     if request.method == 'POST':
         try:
@@ -368,10 +390,17 @@ def edit_course(course_id: int) -> str:
             credits = request.form.get('credits', type=int) or 3
             semester = (request.form.get('semester') or '').strip() or None
             year = request.form.get('year', type=int)
+            lecturer_id = request.form.get('lecturer_id', type=int)
 
             if not code or not name:
                 flash('Course code and name are required.', 'danger')
                 return redirect(url_for('admin.edit_course', course_id=course_id))
+
+            if lecturer_id:
+                lecturer = Lecturer.query.get(lecturer_id)
+                if not lecturer or not lecturer.user or lecturer.user.role != 'lecturer':
+                    flash('Invalid lecturer selected.', 'danger')
+                    return redirect(url_for('admin.edit_course', course_id=course_id))
 
             course.name = name
             course.code = code
@@ -379,6 +408,7 @@ def edit_course(course_id: int) -> str:
             course.credits = credits
             course.semester = semester
             course.year = year
+            course.lecturer_id = lecturer_id or None
             course.is_active = 'is_active' in request.form
             course.updated_at = app_now()
             db.session.commit()
@@ -388,7 +418,7 @@ def edit_course(course_id: int) -> str:
             db.session.rollback()
             current_app.logger.error(f'Error editing course {course_id}: {str(e)}')
             flash('An error occurred. Please try again.', 'danger')
-    return render_template('course_form.html', action='Edit', course=course)
+    return render_template('course_form.html', action='Edit', course=course, lecturers=lecturers)
 
 
 @admin_bp.route('/enrollments')

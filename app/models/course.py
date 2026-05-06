@@ -5,9 +5,9 @@ from app.utils.app_time import app_now, app_today
 class Course(db.Model):
     """Course model representing academic courses.
     
-    IMPORTANT: Courses do NOT have lecturers assigned directly.
-    Lecturers are assigned to MODULES within courses (many-to-many).
-    Students enroll in courses and access content through modules.
+    Courses primarily use module-level lecturer assignment (many-to-many).
+    Optionally, a course may have a "primary lecturer" assigned for display
+    and admin management convenience.
     """
     __tablename__ = 'courses'
     
@@ -16,7 +16,8 @@ class Course(db.Model):
     name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=True)
     credits = db.Column(db.Integer, default=3)
-    # REMOVED: lecturer_id - lecturers are assigned to modules, not courses
+    # Optional primary lecturer for this course (admin-assigned).
+    lecturer_id = db.Column(db.Integer, db.ForeignKey('lecturers.id'), nullable=True, index=True)
     semester = db.Column(db.String(20), nullable=True)
     year = db.Column(db.Integer, default=lambda: app_today().year)
     is_active = db.Column(db.Boolean, default=True)
@@ -26,6 +27,7 @@ class Course(db.Model):
     # Relationships
     modules = db.relationship('Module', backref='course', lazy=True, cascade='all, delete-orphan')
     enrollments = db.relationship('Enrollment', backref='course', lazy=True, cascade='all, delete-orphan')
+    lecturer = db.relationship('Lecturer', foreign_keys=[lecturer_id], lazy='joined')
     
     def __repr__(self):
         return f'<Course {self.code}: {self.name}>'
@@ -47,6 +49,13 @@ class Course(db.Model):
             Module.course_id == self.id
         ).distinct().all()
         return Lecturer.query.filter(Lecturer.id.in_([lid[0] for lid in lecturer_ids])).all()
+
+    def get_primary_lecturer(self):
+        """Return the admin-assigned primary lecturer if set, else first module lecturer."""
+        if self.lecturer:
+            return self.lecturer
+        lecturers = self.get_lecturers()
+        return lecturers[0] if lecturers else None
     
     @property
     def average(self):
@@ -77,12 +86,15 @@ class Course(db.Model):
         return round(total_completion / len(progress_records))
     
     def to_dict(self):
+        primary_lect = self.get_primary_lecturer()
         return {
             'id': self.id,
             'code': self.code,
             'name': self.name,
             'description': self.description,
             'credits': self.credits,
+            'lecturer_id': self.lecturer_id,
+            'lecturer_name': (primary_lect.user.full_name if primary_lect and primary_lect.user else None),
             'semester': self.semester,
             'year': self.year,
             'is_active': self.is_active,

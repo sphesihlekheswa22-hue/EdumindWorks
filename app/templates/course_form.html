@@ -145,6 +145,33 @@
         </div>
       </div>
 
+      <!-- Lecturer Assignment (Admin) -->
+      {% if lecturers is defined %}
+      <div class="space-y-2">
+        <label class="block text-sm font-semibold text-slate-200">
+          Assigned Lecturer
+        </label>
+        <div class="relative">
+          <select name="lecturer_id"
+                  class="w-full px-4 py-3 rounded-xl bg-slate-900/50 border border-white/10 text-white focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all appearance-none cursor-pointer">
+            <option value="" class="bg-slate-900">Unassigned</option>
+            {% for lect in lecturers %}
+              {% set lect_user = lect.user %}
+              <option value="{{ lect.id }}"
+                      {{ 'selected' if course and course.lecturer_id == lect.id else '' }}
+                      class="bg-slate-900">
+                {{ lect_user.full_name if lect_user else ('Lecturer #' ~ lect.id) }}
+              </option>
+            {% endfor %}
+          </select>
+          <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+            <i class="bi bi-chevron-down text-slate-500"></i>
+          </div>
+        </div>
+        <p class="text-xs text-slate-500">This sets the primary instructor shown on the course page.</p>
+      </div>
+      {% endif %}
+
       <!-- Status Toggle -->
       <div class="p-4 rounded-2xl bg-white/5 border border-white/10">
         <div class="flex items-center justify-between">

@@ -184,8 +184,9 @@ def detail(course_id: int) -> str:
                 .first()
             )
 
-    # Get lecturers teaching this course
-    lecturers = course.get_lecturers()
+    # Prefer admin-assigned primary lecturer for display; fall back to module lecturers.
+    primary_lecturer = course.get_primary_lecturer()
+    lecturers = [primary_lecturer] if primary_lecturer else course.get_lecturers()
     
     return render_template(
         'course_detail.html',
