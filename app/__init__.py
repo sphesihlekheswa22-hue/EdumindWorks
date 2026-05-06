@@ -95,6 +95,14 @@ def create_app(config_name='default'):
     bcrypt.init_app(app)
     migrate.init_app(app, db)
     session.init_app(app)
+
+    # Ensure server-side session directory exists (required for CSRF/session stability)
+    try:
+        sess_dir = app.config.get("SESSION_FILE_DIR")
+        if sess_dir:
+            os.makedirs(sess_dir, exist_ok=True)
+    except Exception:
+        logger.exception("Could not create SESSION_FILE_DIR")
     
     # ==================== CACHE CONTROL ====================
     @app.after_request
