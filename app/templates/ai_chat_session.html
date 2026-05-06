@@ -355,12 +355,14 @@
 
         if (typingIndicator) typingIndicator.classList.remove('hidden');
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        // IMPORTANT: build FormData before disabling inputs (disabled fields are excluded)
+        const fd = new FormData(chatForm);
+        if (!fd.get('message')) fd.set('message', text);
+
         messageInput.disabled = true;
         document.getElementById('sendButton').disabled = true;
         messageInput.style.height = 'auto';
         charCount.textContent = '0';
-
-        const fd = new FormData(chatForm);
         const ctrl = new AbortController();
         const t = setTimeout(function() { ctrl.abort(); }, 115000);
 
