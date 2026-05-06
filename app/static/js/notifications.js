@@ -39,6 +39,7 @@ class NotificationSystem {
         // Intervention form handling
         const form = document.getElementById('interventionForm');
         if (form) {
+            form.dataset.handlerAttached = '1';
             form.addEventListener('submit', (e) => this.handleInterventionSubmit(e));
         }
         

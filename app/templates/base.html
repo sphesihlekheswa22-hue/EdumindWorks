@@ -851,6 +851,46 @@
             }, 300);
         }
 
+        // Fallback "Reach out" handler (in case notifications.js fails to load).
+        // This ensures the at-risk "Reach out" button always opens and can submit.
+        window.intervene = window.intervene || function(studentId, studentName, riskLevel, courseId) {
+            try {
+                const studentIdInput = document.getElementById('interventionStudentId');
+                const studentNameEl = document.getElementById('interventionStudentName');
+                const studentAvatarEl = document.getElementById('interventionStudentAvatar');
+                const studentRiskEl = document.getElementById('interventionStudentRisk');
+
+                if (studentIdInput) studentIdInput.value = studentId;
+                if (studentNameEl) studentNameEl.textContent = studentName || 'Student';
+                if (studentAvatarEl) studentAvatarEl.textContent = (studentName || 'S').charAt(0).toUpperCase();
+                if (studentRiskEl) studentRiskEl.textContent = `At-risk: ${riskLevel || 'high'}`;
+
+                if (courseId) {
+                    let courseInput = document.getElementById('interventionCourseId');
+                    if (!courseInput) {
+                        courseInput = document.createElement('input');
+                        courseInput.type = 'hidden';
+                        courseInput.id = 'interventionCourseId';
+                        const form = document.getElementById('interventionForm');
+                        if (form) form.appendChild(courseInput);
+                    }
+                    courseInput.value = courseId;
+                }
+
+                const modal = document.getElementById('interventionModal');
+                const content = document.getElementById('interventionModalContent');
+                if (modal && content) {
+                    modal.classList.remove('hidden');
+                    setTimeout(() => {
+                        content.classList.remove('scale-95', 'opacity-0');
+                        content.classList.add('scale-100', 'opacity-100');
+                    }, 10);
+                }
+            } catch (e) {
+                console.error('intervene fallback failed', e);
+            }
+        };
+
         // Close dropdowns when clicking outside
         document.addEventListener('click', function(e) {
             const dropdown = document.getElementById('notificationDropdown');
@@ -880,6 +920,47 @@
         document.querySelectorAll('.glass-card, .bento-item').forEach(el => {
             el.classList.add('opacity-0');
             observer.observe(el);
+        });
+
+        // Fallback intervention submit (only if notifications.js doesn't attach its handler).
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('interventionForm');
+            if (!form) return;
+            if (form.dataset.handlerAttached === '1') return;
+            form.dataset.handlerAttached = '1';
+            form.addEventListener('submit', async function(e) {
+                // If NotificationSystem exists, it will handle it.
+                if (window.notificationSystem && typeof window.notificationSystem.handleInterventionSubmit === 'function') {
+                    return;
+                }
+                e.preventDefault();
+                const studentId = document.getElementById('interventionStudentId')?.value;
+                const message = document.getElementById('interventionMessage')?.value || '';
+                const template = document.getElementById('templateSelect')?.value || 'custom';
+                const courseId = document.getElementById('interventionCourseId')?.value;
+                if (!studentId || !message.trim()) return;
+
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const res = await fetch('/notifications/api/interventions/send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(csrfToken ? {'X-CSRFToken': csrfToken} : {}),
+                    },
+                    body: JSON.stringify({
+                        student_id: parseInt(studentId, 10),
+                        message: message,
+                        template: template,
+                        course_id: courseId ? parseInt(courseId, 10) : null
+                    })
+                });
+                if (res.ok) {
+                    closeInterventionModal();
+                } else {
+                    const data = await res.json().catch(() => ({}));
+                    alert(data.error || 'Failed to send.');
+                }
+            });
         });
     </script>
     
