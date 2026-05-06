@@ -188,6 +188,16 @@ def detail(course_id: int) -> str:
     primary_lecturer = course.get_primary_lecturer()
     lecturers = [primary_lecturer] if primary_lecturer else course.get_lecturers()
     
+    lecturers_all = []
+    if current_user.role == "admin":
+        from app.models.user import User
+        lecturers_all = (
+            Lecturer.query.join(User, Lecturer.user_id == User.id)
+            .filter(User.role == "lecturer")
+            .order_by(User.first_name.asc(), User.last_name.asc())
+            .all()
+        )
+
     return render_template(
         'course_detail.html',
         course=course,
@@ -197,6 +207,7 @@ def detail(course_id: int) -> str:
         materials_count=materials_count,
         quizzes_count=quizzes_count,
         lecturers=lecturers,
+        lecturers_all=lecturers_all,
         active_enrolled_course=active_enrolled_course,
         lecturer_default_module=lecturer_default_module
     )
@@ -550,6 +561,17 @@ def create_module(course_id: int) -> Union[str, redirect]:
     existing_modules: List[Module] = Module.query.filter_by(
         course_id=course_id
     ).order_by(Module.order).all()
+
+    # Lecturer options (admin can assign module lecturers at creation time)
+    lecturers = []
+    if current_user.role == "admin":
+        from app.models.user import User
+        lecturers = (
+            Lecturer.query.join(User, Lecturer.user_id == User.id)
+            .filter(User.role == "lecturer")
+            .order_by(User.first_name.asc(), User.last_name.asc())
+            .all()
+        )
     
     # Calculate next order
     last_module: Optional[Module] = Module.query.filter_by(
@@ -621,8 +643,34 @@ def create_module(course_id: int) -> Union[str, redirect]:
                 db.session.add(module)
                 db.session.commit()
                 
-                # If lecturer created module, auto-assign them to it
-                if current_user.role == 'lecturer':
+                # Lecturer assignment
+                if current_user.role == 'admin':
+                    from app.models.lecturer import LecturerModule
+
+                    selected_ids = [int(x) for x in request.form.getlist("lecturer_ids") if str(x).isdigit()]
+                    primary_id = request.form.get("primary_lecturer_id", type=int)
+
+                    if primary_id and primary_id not in selected_ids:
+                        selected_ids.append(primary_id)
+
+                    # If none selected, default to course's assigned lecturer (if set)
+                    if not selected_ids and course.lecturer_id:
+                        selected_ids = [int(course.lecturer_id)]
+                        primary_id = int(course.lecturer_id)
+
+                    # Create lecturer-module links
+                    if selected_ids:
+                        for lid in sorted(set(selected_ids)):
+                            lm = LecturerModule(
+                                lecturer_id=lid,
+                                module_id=module.id,
+                                is_primary=(lid == primary_id) if primary_id else False,
+                            )
+                            db.session.add(lm)
+                        db.session.commit()
+
+                elif current_user.role == 'lecturer':
+                    # If lecturer created module, auto-assign them as primary
                     lecturer = Lecturer.query.filter_by(user_id=current_user.id).first()
                     if lecturer:
                         lecturer.assign_to_module(module.id, is_primary=True)
@@ -643,7 +691,8 @@ def create_module(course_id: int) -> Union[str, redirect]:
                          form=form, 
                          course=course, 
                          existing_modules=existing_modules, 
-                         next_order=next_order)
+                         next_order=next_order,
+                         lecturers=lecturers)
 
 
 @courses_bp.route('/modules/<int:module_id>/assign-lecturer', methods=['POST'])

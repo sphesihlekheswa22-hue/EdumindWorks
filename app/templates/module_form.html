@@ -147,6 +147,64 @@
                     </div>
                 </div>
 
+                {% if current_user.role == 'admin' %}
+                <!-- Lecturer Assignment -->
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-slate-300 flex items-center gap-2">
+                        <i class="bi bi-person-video3 text-slate-500"></i>
+                        Assign Lecturers to this Module
+                    </label>
+
+                    <div class="rounded-2xl bg-white/4 border border-white/10 p-4 space-y-3">
+                        <div class="text-xs text-slate-500">
+                            Select lecturers who can manage content for this module. You can also choose a primary lecturer.
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {% for lect in lecturers|default([]) %}
+                            <label class="flex items-center gap-3 p-3 rounded-xl bg-slate-900/25 border border-white/10 hover:border-white/20 hover:bg-slate-900/35 transition-all cursor-pointer">
+                                <input type="checkbox"
+                                       name="lecturer_ids"
+                                       value="{{ lect.id }}"
+                                       class="rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500/20">
+                                <div class="min-w-0">
+                                    <div class="text-sm text-slate-200 font-medium truncate">
+                                        {{ lect.user.full_name if lect.user else ('Lecturer #' ~ lect.id) }}
+                                    </div>
+                                    <div class="text-xs text-slate-500 truncate">
+                                        {{ lect.employee_id }}
+                                    </div>
+                                </div>
+                            </label>
+                            {% endfor %}
+                        </div>
+
+                        <div class="pt-2 border-t border-white/10">
+                            <label class="text-xs text-slate-500 block mb-2">Primary lecturer (optional)</label>
+                            <div class="relative">
+                                <select name="primary_lecturer_id"
+                                        class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-white appearance-none cursor-pointer">
+                                    <option value="">No primary lecturer</option>
+                                    {% for lect in lecturers|default([]) %}
+                                    <option value="{{ lect.id }}">
+                                        {{ lect.user.full_name if lect.user else ('Lecturer #' ~ lect.id) }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                    <i class="bi bi-chevron-down text-slate-500"></i>
+                                </div>
+                            </div>
+                            {% if course.lecturer_id %}
+                            <p class="text-xs text-slate-500 mt-2">
+                                Tip: if you leave this blank, the module will default to the course’s assigned lecturer.
+                            </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
                 <!-- Title Suggestions -->
                 <div class="space-y-2">
                     <label class="text-sm font-medium text-slate-300">💡 Suggested Titles</label>
