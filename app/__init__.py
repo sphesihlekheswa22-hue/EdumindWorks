@@ -94,7 +94,9 @@ def create_app(config_name='default'):
     csrf.init_app(app)
     bcrypt.init_app(app)
     migrate.init_app(app, db)
-    session.init_app(app)
+    # Flask-Session is optional; prefer Flask's cookie sessions unless enabled.
+    if app.config.get("SESSION_TYPE"):
+        session.init_app(app)
 
     # Ensure server-side session directory exists (required for CSRF/session stability)
     try:

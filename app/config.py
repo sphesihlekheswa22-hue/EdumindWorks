@@ -59,7 +59,9 @@ class Config:
         SQLALCHEMY_ENGINE_OPTIONS = {}
     
     # Session
-    SESSION_TYPE = 'filesystem'
+    # Flask-Session can break on some platforms/versions (bytes cookie id TypeError).
+    # Default to Flask's signed cookie sessions unless explicitly enabled.
+    SESSION_TYPE = (os.environ.get("SESSION_TYPE") or "").strip() or None
     # Ensure a writable session dir on Render/Linux (repo paths may be read-only or wiped).
     SESSION_FILE_DIR = (os.environ.get("SESSION_FILE_DIR") or os.path.join(tempfile.gettempdir(), "edumind_flask_session")).strip()
     # Flask-Session signer can return bytes in some versions, which breaks cookie setting on Werkzeug.
@@ -138,6 +140,8 @@ class DevelopmentConfig(Config):
 class ProductionConfig(Config):
     """Production configuration."""
     DEBUG = False
+    # Use Flask cookie sessions in production to avoid Flask-Session cookie-id bytes bug.
+    SESSION_TYPE = None
     SESSION_COOKIE_SECURE = True
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
