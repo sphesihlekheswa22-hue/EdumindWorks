@@ -170,6 +170,18 @@ def lecturer_analytics():
         abort(403)
     
     lecturer = Lecturer.query.filter_by(user_id=current_user.id).first_or_404()
+
+    def _clamp_pct(value) -> float:
+        """Keep percentages within 0..100 for display/analytics (handles dirty historical data)."""
+        try:
+            v = float(value or 0)
+        except Exception:
+            return 0.0
+        if v < 0:
+            return 0.0
+        if v > 100:
+            return 100.0
+        return v
     
     # Lecturer scope: only modules actually assigned to the lecturer
     assigned_modules = lecturer.get_assigned_modules()
@@ -272,18 +284,18 @@ def lecturer_analytics():
                 Quiz.module_id.in_(module_ids)
             ).scalar()
 
-            m_avg = float(m_avg or 0)
-            q_avg = float(q_avg or 0)
+            m_avg = _clamp_pct(m_avg)
+            q_avg = _clamp_pct(q_avg)
             # Composite: mean of available components
             comps = [v for v in [m_avg, q_avg] if v > 0]
-            overall = sum(comps) / len(comps) if comps else 0.0
+            overall = _clamp_pct(sum(comps) / len(comps) if comps else 0.0)
 
             student_scores.append({
                 "student_id": sid,
                 "name": student.user.full_name,
-                "avg_marks": round(m_avg, 1),
-                "avg_quizzes": round(q_avg, 1),
-                "overall": round(overall, 1),
+                "avg_marks": round(_clamp_pct(m_avg), 1),
+                "avg_quizzes": round(_clamp_pct(q_avg), 1),
+                "overall": round(_clamp_pct(overall), 1),
             })
 
         student_scores.sort(key=lambda x: x["overall"], reverse=True)
@@ -299,6 +311,7 @@ def lecturer_analytics():
             ).filter(Quiz.module_id.in_(course_module_ids)).scalar() or 0
         else:
             avg_score = 0
+        avg_score = _clamp_pct(avg_score)
         
         # Pass rate from quiz results in this course
         if course_module_ids:
@@ -342,7 +355,7 @@ def lecturer_analytics():
         course_performance.append({
             'code': course.code,
             'name': course.name,
-            'avg_score': round(avg_score, 1),
+            'avg_score': round(_clamp_pct(avg_score), 1),
             'students': course.get_student_count(),
             'student_count': course.get_student_count(),
             'pass_rate': round(pass_rate, 1),
