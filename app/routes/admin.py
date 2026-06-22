@@ -1,4 +1,5 @@
 from functools import wraps
+import re
 from typing import List, Optional, Union
 from flask import (
     Blueprint, render_template, redirect, url_for,
@@ -46,13 +47,19 @@ def admin_required(f):
     return decorated_function
 
 
-def _name_part_has_letters(name_part: str) -> bool:
-    """Return True when a name part contains at least one letter."""
-    return bool(name_part) and any(char.isalpha() for char in name_part)
+_NAME_PART_RE = re.compile(r"^[A-Za-z]+(?:[ '\-][A-Za-z]+)*$")
+_INVALID_NAME_MESSAGE = (
+    'Names must use letters only. Numbers, symbols, and spaces-only values are not allowed.'
+)
+
+
+def _is_valid_name_part(name_part: str) -> bool:
+    """Allow letters with spaces, hyphens, or apostrophes between letter groups."""
+    return bool(name_part) and bool(_NAME_PART_RE.match(name_part))
 
 
 def _is_valid_full_name(full_name: str) -> bool:
-    """Reject empty, whitespace-only, or number/symbol-only names."""
+    """Reject empty names and values containing digits or symbols."""
     cleaned = (full_name or '').strip()
     if not cleaned:
         return False
@@ -61,9 +68,9 @@ def _is_valid_full_name(full_name: str) -> bool:
     first_name = parts[0]
     last_name = parts[1] if len(parts) > 1 else ''
 
-    if not _name_part_has_letters(first_name):
+    if not _is_valid_name_part(first_name):
         return False
-    if last_name and not _name_part_has_letters(last_name):
+    if last_name and not _is_valid_name_part(last_name):
         return False
     return True
 
@@ -98,6 +105,9 @@ def users() -> str:
         valid_roles = {'student', 'lecturer', 'admin', 'career_advisor'}
         if not first_name or not last_name or not email or not password:
             flash('All user fields are required.', 'danger')
+            return redirect(url_for('admin.users'))
+        if not _is_valid_name_part(first_name) or not _is_valid_name_part(last_name):
+            flash(_INVALID_NAME_MESSAGE, 'danger')
             return redirect(url_for('admin.users'))
         if role not in valid_roles:
             flash('Invalid role selected.', 'danger')
@@ -242,10 +252,7 @@ def edit_user(user_id: int) -> str:
         }
 
         if not _is_valid_full_name(full_name):
-            flash(
-                'Please enter a valid full name with letters. Spaces, numbers, or symbols alone are not allowed.',
-                'danger',
-            )
+            flash(_INVALID_NAME_MESSAGE, 'danger')
             return render_template('user_edit.html', user=user, form_data=form_data)
 
         valid_roles = {'student', 'lecturer', 'admin', 'career_advisor'}
