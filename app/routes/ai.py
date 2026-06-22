@@ -96,7 +96,187 @@ def _ollama_chat(messages: list[dict], model: str, base_url: str, timeout: int =
     return content
 
 
-def _fallback_tutor_response(user_message: str, session: ChatSession | None = None) -> str:
+def _build_student_ai_context(student: Student, session: ChatSession | None = None) -> str:
+    """Build LMS context: profile, enrollments, modules, and current chat focus."""
+    lines: list[str] = []
+    user = student.user
+
+    lines.append("STUDENT PROFILE:")
+    if user:
+        lines.append(f"- Name: {user.full_name}")
+    lines.append(f"- Student number: {student.student_id}")
+    if student.program:
+        lines.append(f"- Program: {student.program}")
+    if student.year_of_study:
+        lines.append(f"- Year of study: {student.year_of_study}")
+
+    enrollments = (
+        Enrollment.query.filter_by(student_id=student.id, status='active')
+        .join(Course)
+        .order_by(Course.code)
+        .all()
+    )
+
+    lines.append("")
+    lines.append("ACTIVE ENROLLMENTS (only these courses belong to this student):")
+    if not enrollments:
+        lines.append("- None — student is not enrolled in any active courses on EduMind.")
+    else:
+        for enrollment in enrollments:
+            course = enrollment.course
+            if not course:
+                continue
+            lines.append(f"- {course.code}: {course.name}")
+            if course.semester:
+                lines.append(f"  Semester: {course.semester}")
+            if course.description:
+                desc = " ".join((course.description or "").split())[:280]
+                lines.append(f"  About: {desc}")
+            modules = sorted(course.modules or [], key=lambda m: (m.order or 0, m.title or ""))
+            if modules:
+                lines.append("  Modules:")
+                for module in modules[:15]:
+                    extra = ""
+                    if module.description:
+                        extra = " — " + " ".join(module.description.split())[:100]
+                    lines.append(
+                        f"    • {module.title}{extra} "
+                        f"({len(module.materials or [])} materials, "
+                        f"{len(module.quizzes or [])} quizzes, "
+                        f"{len(module.assignments or [])} assignments)"
+                    )
+            else:
+                lines.append("  Modules: none published yet")
+
+    if session:
+        lines.append("")
+        lines.append("CURRENT CHAT SESSION:")
+        lines.append(f"- Topic: {session.topic or 'General'}")
+        if session.course:
+            lines.append(f"- Focus course: {session.course.code} — {session.course.name}")
+
+    return "\n".join(lines)
+
+
+def _build_ai_system_prompt(student: Student, session: ChatSession | None = None) -> str:
+    """Strict EduMind-only tutor instructions plus live student enrollment data."""
+    context = _build_student_ai_context(student, session)
+    return f"""You are EduMind AI Tutor, built into the EduMind Learning Management System (LMS).
+
+STRICT RULES — follow these on every reply:
+1. ONLY help with EduMind and this student's studies: enrolled courses/modules, materials, quizzes, assignments, marks, attendance, study plans, CV review within EduMind, and academic skills tied to their enrolled modules.
+2. If the question is unrelated (general trivia, news, sports, recipes, politics, other apps/websites, entertainment, personal life unrelated to studies, etc.), politely refuse. Say you only assist with their EduMind coursework and point them to their enrolled courses below.
+3. Use ONLY the student data below. Never invent courses, modules, grades, or deadlines. If something is missing, say it is not in EduMind data and tell them where to check in the app (Courses, Marks, Assignments, module pages).
+4. When asked what they are registered/enrolled for, list their ACTIVE ENROLLMENTS exactly as shown below.
+5. Keep answers clear, concise, and educational. Use examples from their enrolled subjects when possible.
+
+{context}
+"""
+
+
+def _is_edumind_related(message: str, session: ChatSession | None = None) -> bool:
+    """Heuristic for offline fallback: is the message about EduMind studies?"""
+    msg_l = (message or "").strip().lower()
+    if not msg_l:
+        return True
+
+    greetings = (
+        "hi", "hello", "hey", "good morning", "good afternoon", "good evening",
+        "thanks", "thank you", "help", "ok", "okay",
+    )
+    if msg_l in greetings or any(msg_l.startswith(g + " ") for g in greetings):
+        return True
+
+    edu_keywords = (
+        "course", "module", "quiz", "assignment", "mark", "grade", "study", "exam",
+        "lecture", "enrol", "enroll", "registered", "registration", "edumind",
+        "homework", "attendance", "material", "learn", "explain", "revise",
+        "revision", "syllabus", "lecturer", "tutor", "subject", "topic", "notes",
+        "progress", "cv", "career", "dashboard", "class", "semester", "module hub",
+    )
+    if any(keyword in msg_l for keyword in edu_keywords):
+        return True
+
+    if session and session.course:
+        code = (session.course.code or "").lower()
+        name = (session.course.name or "").lower()
+        if code and code in msg_l:
+            return True
+        if name and any(word in msg_l for word in name.split() if len(word) > 3):
+            return True
+
+    if session and session.topic and session.topic.lower() not in ("general", "general learning"):
+        if any(word in msg_l for word in session.topic.lower().split() if len(word) > 3):
+            return True
+
+    return False
+
+
+def _off_topic_refusal(student: Student | None) -> str:
+    courses = student.get_enrolled_courses() if student else []
+    if courses:
+        listed = ", ".join(f"**{c.code}** ({c.name})" for c in courses[:8])
+        return (
+            "I can only help with your **EduMind** studies — your enrolled courses, modules, "
+            "assignments, quizzes, marks, and study skills for those subjects.\n\n"
+            f"You are registered for: {listed}.\n\n"
+            "Ask me about one of those courses or how to use EduMind."
+        )
+    return (
+        "I can only help with **EduMind** — courses, modules, and study work on this platform.\n\n"
+        "You are not enrolled in any active courses yet. Open **Courses** in the menu to enroll."
+    )
+
+
+def _enrollment_summary_response(student: Student) -> str:
+    courses = student.get_enrolled_courses()
+    if not courses:
+        return (
+            "You are **not enrolled** in any active courses on EduMind right now.\n\n"
+            "Go to **Courses** in the menu to browse and enroll."
+        )
+
+    lines = ["You are **registered for** these active courses on EduMind:\n"]
+    for course in courses:
+        lines.append(f"- **{course.code}** — {course.name}")
+        if course.semester:
+            lines.append(f"  Semester: {course.semester}")
+        modules = sorted(course.modules or [], key=lambda m: (m.order or 0, m.title or ""))
+        if modules:
+            module_names = ", ".join(m.title for m in modules[:8])
+            suffix = "…" if len(modules) > 8 else ""
+            lines.append(f"  Modules: {module_names}{suffix}")
+    lines.append("\nAsk me about any of these courses or their modules.")
+    return "\n".join(lines)
+
+
+def _build_welcome_message(student: Student, topic: str) -> str:
+    first_name = student.user.first_name if student.user else "there"
+    courses = student.get_enrolled_courses()
+    topic_text = topic or "General"
+
+    if courses:
+        listed = ", ".join(f"{c.code}" for c in courses[:6])
+        extra = f" (+{len(courses) - 6} more)" if len(courses) > 6 else ""
+        return (
+            f"Hello {first_name}! I'm your **EduMind AI tutor** for **{topic_text}**.\n\n"
+            f"I can see you're enrolled in: **{listed}**{extra}.\n\n"
+            "I only answer questions about your EduMind courses, modules, and study work. "
+            "Ask about your enrolled subjects, module topics, or how to use EduMind."
+        )
+
+    return (
+        f"Hello {first_name}! I'm your **EduMind AI tutor** for **{topic_text}**.\n\n"
+        "You don't have any active course enrollments yet. I can still explain how EduMind works, "
+        "but enroll in a course from the **Courses** page for subject-specific help."
+    )
+
+
+def _fallback_tutor_response(
+    user_message: str,
+    session: ChatSession | None = None,
+    student: Student | None = None,
+) -> str:
     """
     Local, rule-based fallback so the AI pages stay useful even with no API key.
     This avoids 500s and gives the student actionable next steps.
@@ -104,6 +284,18 @@ def _fallback_tutor_response(user_message: str, session: ChatSession | None = No
     msg = (user_message or "").strip()
     msg_l = msg.lower()
     topic = (getattr(session, "topic", None) or "your subject").strip()
+
+    if student and not _is_edumind_related(msg, session):
+        return _off_topic_refusal(student)
+
+    if student and any(
+        phrase in msg_l
+        for phrase in (
+            "what course", "which course", "my course", "enrolled", "registered",
+            "registration", "what am i studying", "what modules",
+        )
+    ):
+        return _enrollment_summary_response(student)
 
     def _bullet(items: list[str]) -> str:
         return "\n".join([f"- {i}" for i in items])
@@ -168,6 +360,19 @@ def _fallback_tutor_response(user_message: str, session: ChatSession | None = No
         )
 
     # Default helpful response
+    if student:
+        courses = student.get_enrolled_courses()
+        if courses:
+            codes = ", ".join(c.code for c in courses[:5])
+            return (
+                "I'm in **offline mode** but I can still help with your EduMind studies.\n\n"
+                f"You're enrolled in: **{codes}**.\n\n"
+                "Ask about:\n"
+                "- What courses or modules you're registered for\n"
+                "- Study help for topics in your enrolled modules\n"
+                "- How to find assignments, quizzes, or marks in EduMind"
+            )
+
     return (
         "AI is currently running in **offline mode** (no OpenRouter key configured), but I can still help.\n\n"
         "Send one of these and I’ll respond:\n"
@@ -279,12 +484,17 @@ def chat():
         return redirect(url_for('main.dashboard'))
     
     student = Student.query.filter_by(user_id=current_user.id).first()
-    
+    if not student:
+        flash('AI chat requires a student profile.', 'danger')
+        return redirect(url_for('main.dashboard'))
+
+    courses = student.get_enrolled_courses()
+
     # Get chat sessions
     sessions = ChatSession.query.filter_by(student_id=student.id)\
         .order_by(ChatSession.updated_at.desc()).limit(10).all()
     
-    return render_template('ai_chat.html', sessions=sessions, ai_enabled=_ai_enabled())
+    return render_template('ai_chat.html', sessions=sessions, courses=courses, ai_enabled=_ai_enabled())
 
 
 @ai_bp.route('/chat/new', methods=['POST'])
@@ -295,9 +505,12 @@ def new_chat():
         return jsonify({'error': 'Access denied'}), 403
     
     student = Student.query.filter_by(user_id=current_user.id).first()
+    if not student:
+        flash('AI chat requires a student profile.', 'danger')
+        return redirect(url_for('ai.chat'))
     
     course_id = request.form.get('course_id')
-    topic = request.form.get('topic', 'General')
+    topic = (request.form.get('topic') or 'General').strip() or 'General'
     
     session = ChatSession(
         student_id=student.id,
@@ -313,7 +526,7 @@ def new_chat():
     welcome = ChatMessage(
         session_id=session.id,
         role='assistant',
-        content=f"Hello! I'm your AI tutor. How can I help you with {topic} today?"
+        content=_build_welcome_message(student, topic),
     )
     db.session.add(welcome)
     db.session.commit()
@@ -386,16 +599,11 @@ def send_message(session_id):
     messages = ChatMessage.query.filter_by(session_id=session_id)\
         .order_by(ChatMessage.created_at).all()
     
-    # Build context
-    context = f"You are an AI tutor for EduMind AI, a university Learning Management System. "
-    
-    if session.course:
-        context += f"The student is currently studying {session.course.name}. "
-    
-    context += "Provide helpful, educational responses. Explain concepts clearly and provide examples when appropriate."
+    # Build strict EduMind context with live enrollment data
+    system_prompt = _build_ai_system_prompt(student, session)
     
     # Prepare messages for model (DB already includes the new user message after flush)
-    openai_messages = [{"role": "system", "content": context}]
+    openai_messages = [{"role": "system", "content": system_prompt}]
     for msg in messages[-10:]:  # Last 10 messages for context
         openai_messages.append({"role": msg.role, "content": msg.content})
     
@@ -404,7 +612,7 @@ def send_message(session_id):
     if not client:
         # Fallback response if no API key
         current_app.logger.warning("AI: No client available - API key missing or invalid")
-        ai_response = _fallback_tutor_response(user_message, session=session)
+        ai_response = _fallback_tutor_response(user_message, session=session, student=student)
     else:
         try:
             if client.get("provider") == "ollama":
@@ -447,7 +655,7 @@ def send_message(session_id):
         except Exception as e:
             current_app.logger.error(f"AI: OpenRouter API error: {str(e)}")
             # Fall back to offline tutor response so user still gets value.
-            ai_response = _fallback_tutor_response(user_message, session=session)
+            ai_response = _fallback_tutor_response(user_message, session=session, student=student)
     
     # Save AI response
     ai_msg = ChatMessage(
