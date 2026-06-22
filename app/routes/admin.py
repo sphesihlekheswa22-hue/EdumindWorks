@@ -46,6 +46,28 @@ def admin_required(f):
     return decorated_function
 
 
+def _name_part_has_letters(name_part: str) -> bool:
+    """Return True when a name part contains at least one letter."""
+    return bool(name_part) and any(char.isalpha() for char in name_part)
+
+
+def _is_valid_full_name(full_name: str) -> bool:
+    """Reject empty, whitespace-only, or number/symbol-only names."""
+    cleaned = (full_name or '').strip()
+    if not cleaned:
+        return False
+
+    parts = cleaned.split(None, 1)
+    first_name = parts[0]
+    last_name = parts[1] if len(parts) > 1 else ''
+
+    if not _name_part_has_letters(first_name):
+        return False
+    if last_name and not _name_part_has_letters(last_name):
+        return False
+    return True
+
+
 @admin_bp.errorhandler(AdminRequiredError)
 def handle_admin_error(error):
     """Handle admin-specific errors."""
@@ -208,11 +230,33 @@ def edit_user(user_id: int) -> str:
     user: User = User.query.get_or_404(user_id)
     if request.method == 'POST':
         prev_email = (user.email or "").strip().lower()
+        full_name = (request.form.get('full_name') or '').strip()
+        email = (request.form.get('email') or '').strip().lower()
+        role = request.form.get('role')
+        is_active = 'is_active' in request.form
+        form_data = {
+            'full_name': full_name,
+            'email': email,
+            'role': role,
+            'is_active': is_active,
+        }
 
-        user.full_name = request.form.get('full_name')
-        user.email = (request.form.get('email') or '').strip().lower()
-        user.role = request.form.get('role')
-        user.is_active = 'is_active' in request.form
+        if not _is_valid_full_name(full_name):
+            flash(
+                'Please enter a valid full name with letters. Spaces, numbers, or symbols alone are not allowed.',
+                'danger',
+            )
+            return render_template('user_edit.html', user=user, form_data=form_data)
+
+        valid_roles = {'student', 'lecturer', 'admin', 'career_advisor'}
+        if role not in valid_roles:
+            flash('Invalid role selected.', 'danger')
+            return render_template('user_edit.html', user=user, form_data=form_data)
+
+        user.full_name = full_name
+        user.email = email
+        user.role = role
+        user.is_active = is_active
 
         db.session.commit()
         flash('User updated successfully!', 'success')

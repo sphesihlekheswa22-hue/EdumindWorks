@@ -72,11 +72,15 @@
                         </svg>
                         Full Name
                     </label>
-                    <input type="text" id="full_name" name="full_name" value="{{ user.full_name }}" 
+                    <input type="text" id="full_name" name="full_name"
+                        value="{{ form_data.full_name if form_data else user.full_name }}"
                         class="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 
                         focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 focus:bg-slate-900/80 
                         transition-all duration-200 hover:border-white/20"
-                        placeholder="Enter full name" required>
+                        placeholder="Enter full name" required minlength="1" autocomplete="name">
+                    <p id="fullNameError" class="mt-1.5 text-xs text-red-400 hidden">
+                        Enter a valid name with letters. Spaces, numbers, or symbols alone are not allowed.
+                    </p>
                 </div>
 
                 <!-- Email -->
@@ -87,7 +91,7 @@
                         </svg>
                         Email Address
                     </label>
-                    <input type="email" id="email" name="email" value="{{ user.email }}" 
+                    <input type="email" id="email" name="email" value="{{ form_data.email if form_data else user.email }}" 
                         class="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 
                         focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 focus:bg-slate-900/80 
                         transition-all duration-200 hover:border-white/20"
@@ -107,10 +111,11 @@
                             class="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white 
                             focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 focus:bg-slate-900/80 
                             transition-all duration-200 hover:border-white/20 appearance-none cursor-pointer">
-                            <option value="student" {% if user.role == 'student' %}selected{% endif %}>Student</option>
-                            <option value="lecturer" {% if user.role == 'lecturer' %}selected{% endif %}>Lecturer</option>
-                            <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
-                            <option value="career_advisor" {% if user.role == 'career_advisor' %}selected{% endif %}>Career Advisor</option>
+                            {% set selected_role = form_data.role if form_data else user.role %}
+                            <option value="student" {% if selected_role == 'student' %}selected{% endif %}>Student</option>
+                            <option value="lecturer" {% if selected_role == 'lecturer' %}selected{% endif %}>Lecturer</option>
+                            <option value="admin" {% if selected_role == 'admin' %}selected{% endif %}>Admin</option>
+                            <option value="career_advisor" {% if selected_role == 'career_advisor' %}selected{% endif %}>Career Advisor</option>
                         </select>
                         <div class="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none">
                             <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -125,7 +130,8 @@
                 <div class="form-group flex items-end pb-3">
                     <label class="flex items-center gap-3 cursor-pointer group">
                         <div class="relative">
-                            <input type="checkbox" id="is_active" name="is_active" {% if user.is_active %}checked{% endif %} 
+                            {% set active_checked = form_data.is_active if form_data else user.is_active %}
+                            <input type="checkbox" id="is_active" name="is_active" {% if active_checked %}checked{% endif %} 
                                 class="peer sr-only">
                             <div class="w-12 h-7 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-500/80 shadow-inner"></div>
                         </div>
@@ -199,6 +205,8 @@
         const submitBtn = document.getElementById('submitBtn');
         const btnText = document.getElementById('btnText');
         const btnSpinner = document.getElementById('btnSpinner');
+        const fullNameInput = document.getElementById('full_name');
+        const fullNameError = document.getElementById('fullNameError');
         const roleSelect = document.getElementById('role');
         const roleBanner = document.getElementById('roleBanner');
         const roleBannerText = document.getElementById('roleBannerText');
@@ -243,8 +251,52 @@
             }, 150);
         });
 
-        // Loading state on submit
+        function namePartHasLetters(namePart) {
+            return Boolean(namePart) && /[A-Za-z]/.test(namePart);
+        }
+
+        function isValidFullName(fullName) {
+            const cleaned = (fullName || '').trim();
+            if (!cleaned) {
+                return false;
+            }
+
+            const parts = cleaned.split(/\s+/);
+            const firstName = parts[0] || '';
+            const lastName = parts.slice(1).join(' ');
+
+            if (!namePartHasLetters(firstName)) {
+                return false;
+            }
+            if (lastName && !namePartHasLetters(lastName)) {
+                return false;
+            }
+            return true;
+        }
+
+        function setFullNameError(showError) {
+            fullNameError.classList.toggle('hidden', !showError);
+            fullNameInput.classList.toggle('border-red-500/50', showError);
+            fullNameInput.classList.toggle('focus:border-red-500/50', showError);
+            fullNameInput.classList.toggle('focus:ring-red-500/20', showError);
+        }
+
+        fullNameInput.addEventListener('input', function() {
+            if (isValidFullName(this.value)) {
+                setFullNameError(false);
+            }
+        });
+
+        // Validate before submit and show loading state only when valid
         form.addEventListener('submit', function(e) {
+            if (!isValidFullName(fullNameInput.value)) {
+                e.preventDefault();
+                setFullNameError(true);
+                fullNameInput.focus();
+                return;
+            }
+
+            setFullNameError(false);
             submitBtn.disabled = true;
             btnText.textContent = 'Saving...';
             btnSpinner.classList.remove('hidden');
