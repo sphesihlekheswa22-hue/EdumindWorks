@@ -95,9 +95,9 @@
 </div>
 
 <!-- Users Table -->
-<div class="glass-card rounded-3xl overflow-hidden">
-    <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse" id="usersTable">
+<div class="glass-card rounded-3xl">
+    <div class="overflow-x-auto rounded-3xl">
+        <table class="w-full min-w-[960px] text-left border-separate border-spacing-0" id="usersTable">
             <thead>
                 <tr class="bg-slate-900/30 border-b border-white/10">
                     <th class="px-6 py-4 w-10">
@@ -130,7 +130,7 @@
                             <i class="bi bi-chevron-expand opacity-0 group-hover:opacity-100 transition-opacity"></i>
                         </div>
                     </th>
-                    <th class="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Actions</th>
+                    <th class="px-4 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right sticky right-0 z-20 bg-slate-900/95 backdrop-blur-sm border-l border-white/10 min-w-[11rem]">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-white/5" id="tableBody">
@@ -150,8 +150,8 @@
                             </div>
                         </div>
                     </td>
-                    <td class="px-6 py-4">
-                        <span class="text-sm text-slate-300 font-mono">{{ user.email }}</span>
+                    <td class="px-6 py-4 max-w-[220px]">
+                        <span class="text-sm text-slate-300 font-mono truncate block" title="{{ user.email }}">{{ user.email }}</span>
                     </td>
                     <td class="px-6 py-4">
                         {% if user.role == 'student' %}
@@ -181,20 +181,20 @@
                             {{ 'Active' if user.is_active else 'Inactive' }}
                         </span>
                     </td>
-                    <td class="px-6 py-4 text-right">
-                        <div class="flex items-center justify-end gap-1">
-                             <a href="{{ url_for('admin.view_user', user_id=user.id) }}" class="p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all inline-flex" title="View Profile" aria-label="View {{ user.full_name }}">
-                                 <i class="bi bi-eye-fill"></i>
+                    <td class="px-4 py-4 text-right sticky right-0 z-10 bg-slate-950/95 backdrop-blur-sm border-l border-white/10 group-hover:bg-slate-900/90">
+                        <div class="flex items-center justify-end gap-0.5 flex-nowrap shrink-0">
+                             <a href="{{ url_for('admin.view_user', user_id=user.id) }}" class="p-2 text-slate-300 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all inline-flex shrink-0" title="View Profile" aria-label="View {{ user.full_name }}">
+                                 <i class="bi bi-eye-fill text-base"></i>
                              </a>
-                             <a href="{{ url_for('admin.edit_user', user_id=user.id) }}" class="p-2 text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-all inline-flex" title="Edit User" aria-label="Edit {{ user.full_name }}">
-                                 <i class="bi bi-pencil-fill"></i>
+                             <a href="{{ url_for('admin.edit_user', user_id=user.id) }}" class="p-2 text-slate-300 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-all inline-flex shrink-0" title="Edit User" aria-label="Edit {{ user.full_name }}">
+                                 <i class="bi bi-pencil-fill text-base"></i>
                              </a>
                              
                              <!-- Delete Form -->
                              <form method="POST" action="{{ url_for('admin.delete_user', user_id=user.id) }}" class="inline" id="deleteForm-{{ user.id }}">
                                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                  <button type="submit" 
-                                     class="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all" 
+                                     class="p-2 text-slate-300 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all shrink-0" 
                                      title="Delete User"
                                      onclick="return confirmDeleteUser(event, '{{ user.full_name }}')">
                                      <i class="bi bi-trash-fill"></i>
@@ -205,7 +205,7 @@
                              <form method="POST" action="{{ url_for('admin.toggle_user_active', user_id=user.id) }}" class="inline" id="statusForm-{{ user.id }}">
                                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                  <button type="submit" 
-                                     class="p-2 rounded-lg transition-all {{ 'text-emerald-400 hover:text-red-400 hover:bg-red-500/10' if user.is_active else 'text-red-400 hover:text-emerald-400 hover:bg-emerald-500/10' }}" 
+                                     class="p-2 rounded-lg transition-all shrink-0 {{ 'text-emerald-400 hover:text-red-400 hover:bg-red-500/10' if user.is_active else 'text-red-400 hover:text-emerald-400 hover:bg-emerald-500/10' }}" 
                                      title="{{ 'Deactivate' if user.is_active else 'Activate' }}"
                                      onclick="return confirmStatusChange(event, '{{ user.full_name }}', {{ user.is_active }})">
                                      <i class="bi bi-{{ 'pause-circle-fill' if user.is_active else 'play-circle-fill' }}"></i>
@@ -216,7 +216,7 @@
                 </tr>
                 {% else %}
                 <tr id="emptyState">
-                    <td colspan="6" class="px-6 py-16 text-center">
+                    <td colspan="7" class="px-6 py-16 text-center">
                         <div class="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-800/50 flex items-center justify-center">
                             <i class="bi bi-people text-3xl text-slate-600"></i>
                         </div>
