@@ -77,10 +77,9 @@
                         class="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 
                         focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 focus:bg-slate-900/80 
                         transition-all duration-200 hover:border-white/20"
-                        placeholder="Enter full name" required minlength="1" autocomplete="name"
-                        pattern="[A-Za-z]+([ '\-][A-Za-z]+)*(\s[A-Za-z]+([ '\-][A-Za-z]+)*)?">
+                        placeholder="Enter full name" required minlength="1" autocomplete="name">
                     <p id="fullNameError" class="mt-1.5 text-xs text-red-400 hidden">
-                        Names must use letters only. Numbers, symbols, and spaces-only values are not allowed.
+                        Enter a valid name using letters only. Numbers and symbols are not allowed.
                     </p>
                 </div>
 
@@ -252,10 +251,23 @@
             }, 150);
         });
 
-        const namePartPattern = /^[A-Za-z]+(?:[ '\-][A-Za-z]+)*$/;
-
         function isValidNamePart(namePart) {
-            return Boolean(namePart) && namePartPattern.test(namePart);
+            const part = (namePart || '').trim();
+            if (!part) {
+                return false;
+            }
+
+            let hasLetter = false;
+            for (const char of part) {
+                if (/\p{L}/u.test(char)) {
+                    hasLetter = true;
+                } else if (char === ' ' || char === '-' || char === "'") {
+                    continue;
+                } else {
+                    return false;
+                }
+            }
+            return hasLetter;
         }
 
         function isValidFullName(fullName) {
@@ -292,6 +304,8 @@
 
         // Validate before submit and show loading state only when valid
         form.addEventListener('submit', function(e) {
+            fullNameInput.value = fullNameInput.value.trim();
+
             if (!isValidFullName(fullNameInput.value)) {
                 e.preventDefault();
                 setFullNameError(true);

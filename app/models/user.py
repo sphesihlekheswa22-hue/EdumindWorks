@@ -80,12 +80,13 @@ class User(db.Model, UserMixin):
     @property
     def full_name(self):
         """Return the user's full name."""
-        return f"{self.first_name} {self.last_name}"
+        return f"{self.first_name} {self.last_name}".strip()
     
     @full_name.setter
     def full_name(self, name):
         """Set the user's first and last name from a full name."""
-        parts = name.split(' ', 1)
+        cleaned = (name or '').strip()
+        parts = cleaned.split(None, 1)
         self.first_name = parts[0]
         self.last_name = parts[1] if len(parts) > 1 else ''
         return f'<User {self.email} ({self.role})>'

@@ -1,5 +1,4 @@
 from functools import wraps
-import re
 from typing import List, Optional, Union
 from flask import (
     Blueprint, render_template, redirect, url_for,
@@ -47,15 +46,26 @@ def admin_required(f):
     return decorated_function
 
 
-_NAME_PART_RE = re.compile(r"^[A-Za-z]+(?:[ '\-][A-Za-z]+)*$")
 _INVALID_NAME_MESSAGE = (
-    'Names must use letters only. Numbers, symbols, and spaces-only values are not allowed.'
+    'Enter a valid name using letters only. Numbers and symbols are not allowed.'
 )
 
 
 def _is_valid_name_part(name_part: str) -> bool:
-    """Allow letters with spaces, hyphens, or apostrophes between letter groups."""
-    return bool(name_part) and bool(_NAME_PART_RE.match(name_part))
+    """Allow Unicode letters with spaces, hyphens, or apostrophes between names."""
+    part = (name_part or '').strip()
+    if not part:
+        return False
+
+    has_letter = False
+    for char in part:
+        if char.isalpha():
+            has_letter = True
+        elif char in " -'":
+            continue
+        else:
+            return False
+    return has_letter
 
 
 def _is_valid_full_name(full_name: str) -> bool:
