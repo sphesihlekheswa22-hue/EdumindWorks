@@ -6,9 +6,10 @@ from app import db
 from app.utils.app_time import app_now, app_today
 from app.models import (
     User, Student, Lecturer, Course, Enrollment, QuizResult,
-    Attendance, Mark, CourseMaterial, RiskScore, Quiz, Module,
-    ChatSession, ChatMessage
+    Attendance, Mark, CourseMaterial, Quiz, Module,
+    ChatSession, ChatMessage,
 )
+from app.services.risk_service import clamp_pct, compute_student_metrics, count_at_risk_students, list_at_risk_students
 
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/analytics')
 
@@ -132,10 +133,8 @@ def admin_analytics():
         reverse=True
     )[:5]
     
-    # At-risk students
-    at_risk = RiskScore.query.filter(
-        RiskScore.risk_level.in_(['high', 'critical'])
-    ).count()
+    # At-risk students (computed from live marks, quizzes, attendance)
+    at_risk = count_at_risk_students()
     
     return render_template(
         'admin/analytics_admin.html',
@@ -172,16 +171,7 @@ def lecturer_analytics():
     lecturer = Lecturer.query.filter_by(user_id=current_user.id).first_or_404()
 
     def _clamp_pct(value) -> float:
-        """Keep percentages within 0..100 for display/analytics (handles dirty historical data)."""
-        try:
-            v = float(value or 0)
-        except Exception:
-            return 0.0
-        if v < 0:
-            return 0.0
-        if v > 100:
-            return 100.0
-        return v
+        return clamp_pct(value)
     
     # Lecturer scope: only modules actually assigned to the lecturer
     assigned_modules = lecturer.get_assigned_modules()
@@ -239,7 +229,8 @@ def lecturer_analytics():
             assignment_ids = []
 
         a_rows = Attendance.query.filter(
-            Attendance.module_id.in_(module_ids)
+            Attendance.module_id.in_(module_ids),
+            Attendance.date >= cutoff.date(),
         ).with_entities(Attendance.student_id).distinct().all()
         active_student_ids.update([r[0] for r in a_rows])
 
@@ -273,29 +264,16 @@ def lecturer_analytics():
             if not student or not student.user:
                 continue
 
-            m_avg = db.session.query(func.avg(Mark.percentage)).filter(
-                Mark.student_id == sid,
-                Mark.module_id.in_(module_ids)
-            ).scalar()
-            q_avg = db.session.query(func.avg(QuizResult.percentage)).join(
-                Quiz, QuizResult.quiz_id == Quiz.id
-            ).filter(
-                QuizResult.student_id == sid,
-                Quiz.module_id.in_(module_ids)
-            ).scalar()
-
-            m_avg = _clamp_pct(m_avg)
-            q_avg = _clamp_pct(q_avg)
-            # Composite: mean of available components
-            comps = [v for v in [m_avg, q_avg] if v > 0]
-            overall = _clamp_pct(sum(comps) / len(comps) if comps else 0.0)
+            metrics = compute_student_metrics(sid, module_ids=module_ids)
+            if not metrics["has_data"]:
+                continue
 
             student_scores.append({
                 "student_id": sid,
                 "name": student.user.full_name,
-                "avg_marks": round(_clamp_pct(m_avg), 1),
-                "avg_quizzes": round(_clamp_pct(q_avg), 1),
-                "overall": round(_clamp_pct(overall), 1),
+                "avg_marks": metrics["assignment_score"] or 0,
+                "avg_quizzes": metrics["quiz_score"] or 0,
+                "overall": metrics["overall_score"],
             })
 
         student_scores.sort(key=lambda x: x["overall"], reverse=True)
@@ -306,12 +284,22 @@ def lecturer_analytics():
         # Get module IDs for this course
         course_module_ids = [m.id for m in course.modules]
         if course_module_ids:
-            avg_score = db.session.query(func.avg(QuizResult.percentage)).join(
+            quiz_avg = db.session.query(func.avg(QuizResult.percentage)).join(
                 Quiz
-            ).filter(Quiz.module_id.in_(course_module_ids)).scalar() or 0
+            ).filter(Quiz.module_id.in_(course_module_ids)).scalar()
+            mark_avg = db.session.query(func.avg(Mark.percentage)).filter(
+                Mark.module_id.in_(course_module_ids)
+            ).scalar()
         else:
-            avg_score = 0
-        avg_score = _clamp_pct(avg_score)
+            quiz_avg = None
+            mark_avg = None
+
+        score_parts = []
+        if mark_avg is not None:
+            score_parts.append(_clamp_pct(mark_avg))
+        if quiz_avg is not None:
+            score_parts.append(_clamp_pct(quiz_avg))
+        avg_score = sum(score_parts) / len(score_parts) if score_parts else 0
         
         # Pass rate from quiz results in this course
         if course_module_ids:
@@ -385,41 +373,8 @@ def lecturer_analytics():
             'rate': round(rate, 1)
         })
     
-    # At-risk students in lecturer's courses
-    at_risk_students = []
-    if course_ids:
-        risk_scores = RiskScore.query.filter(
-            RiskScore.course_id.in_(course_ids),
-            RiskScore.risk_level.in_(['high', 'critical'])
-        ).all()
-        
-        for rs in risk_scores:
-            student = Student.query.get(rs.student_id)
-            if student and student.user:
-                # Calculate attendance for this student in lecturer's courses
-                attendance_records = Attendance.query.filter(
-                    Attendance.student_id == student.id,
-                    Attendance.module_id.in_(module_ids)
-                ).all()
-                total_att = len(attendance_records)
-                present_att = sum(1 for a in attendance_records if a.status == 'present')
-                attendance_pct = round((present_att / total_att) * 100, 1) if total_att > 0 else 0
-                
-                # Get average mark for student in lecturer's courses
-                marks = Mark.query.filter(
-                    Mark.student_id == student.id,
-                    Mark.module_id.in_(module_ids)
-                ).all()
-                avg_score = round(sum(m.percentage for m in marks) / len(marks), 1) if marks else 0
-                
-                at_risk_students.append({
-                    'id': student.id,
-                    'name': student.user.full_name,
-                    'course_id': rs.course_id,
-                    'risk_score': rs.risk_score,
-                    'attendance': attendance_pct,
-                    'avg_score': avg_score
-                })
+    # At-risk students in lecturer's courses (derived from real academic data)
+    at_risk_students = list_at_risk_students(course_ids=course_ids, module_ids=module_ids or None)
     
     return render_template('analytics_lecturer.html',
                           courses=courses,
@@ -491,8 +446,29 @@ def student_analytics():
             'quizzes_count': len(course_quizzes)
         })
     
-    # Risk assessment
-    risk = RiskScore.query.filter_by(student_id=student.id).first()
+    # Risk assessment from live academic data (worst active enrollment)
+    risk_metrics = None
+    for enrollment in enrollments:
+        course_metrics = compute_student_metrics(student.id, course_id=enrollment.course_id)
+        if not course_metrics["has_data"]:
+            continue
+        if risk_metrics is None or course_metrics["overall_score"] < risk_metrics["overall_score"]:
+            risk_metrics = course_metrics
+
+    risk = None
+    if risk_metrics and risk_metrics["has_data"]:
+        class RiskView:
+            pass
+
+        risk = RiskView()
+        risk.risk_level = risk_metrics["risk_level"]
+        risk.risk_score = risk_metrics["performance_score"]
+        risk.overall_score = risk_metrics["overall_score"]
+        risk.attendance_score = risk_metrics["attendance_score"]
+        risk.quiz_score = risk_metrics["quiz_score"]
+        risk.assignment_score = risk_metrics["assignment_score"]
+        risk.risk_factors = risk_metrics["risk_factors"]
+        risk.is_at_risk = risk_metrics["is_at_risk"]
     
     return render_template('analytics_student.html',
                           avg_mark=round(avg_mark, 1),

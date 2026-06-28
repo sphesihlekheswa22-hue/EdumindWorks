@@ -1075,47 +1075,13 @@ def seed_cv_reviews(students):
     return reviews
 
 def seed_risk_scores(students, courses):
-    """Create risk scores."""
+    """Create risk scores from real attendance, quiz, and mark data."""
     print("Seeding Risk Scores...")
-    
-    risk_scores = []
-    risk_levels = ['low', 'medium', 'high', 'critical']
-    
-    for student in students:
-        # 1-2 risk scores per student (overall + per course)
-        num_scores = random.randint(1, 2)
-        
-        for i in range(num_scores):
-            risk_score_value = random.randint(20, 95)
-            
-            if risk_score_value >= 80:
-                risk_level = 'low'
-            elif risk_score_value >= 60:
-                risk_level = 'medium'
-            elif risk_score_value >= 40:
-                risk_level = 'high'
-            else:
-                risk_level = 'critical'
-            
-            risk = RiskScore(
-                student_id=student.id,
-                course_id=random.choice(courses).id if i == 1 else None,
-                risk_level=risk_level,
-                risk_score=risk_score_value,
-                attendance_score=random.randint(50, 100),
-                quiz_score=random.randint(40, 100),
-                assignment_score=random.randint(45, 100),
-                overall_score=random.randint(50, 95),
-                risk_factors=json.dumps(['Low attendance', 'Missed assignments', 'Low quiz scores'][:random.randint(1, 3)]),
-                recommendations='Increase attendance, submit assignments on time, seek tutoring',
-                calculated_at=datetime.now() - timedelta(days=random.randint(1, 14))
-            )
-            db.session.add(risk)
-            risk_scores.append(risk)
-    
-    db.session.commit()
-    print(f"  Created {len(risk_scores)} risk scores")
-    return risk_scores
+    from app.services.risk_service import recalculate_all_risk_scores
+
+    count = recalculate_all_risk_scores()
+    print(f"  Calculated {count} risk scores from live academic data")
+    return RiskScore.query.all()
 
 def main():
     """Main function to seed all data."""

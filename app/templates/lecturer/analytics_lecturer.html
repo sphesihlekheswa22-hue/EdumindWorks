@@ -216,9 +216,11 @@
                             </div>
                         </td>
                         <td class="py-3 text-center">
-                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium {{ 'bg-red-500/20 text-red-400' if student.risk_score > 80 else 'bg-amber-500/20 text-amber-400' }}">
+                            {% set perf = student.performance_score|default(student.risk_score|default(0)) %}
+                            {% set level = student.risk_level|default('medium') %}
+                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium {{ 'bg-red-500/20 text-red-400' if level in ['high', 'critical'] else 'bg-amber-500/20 text-amber-400' }}">
                                 <i class="bi bi-exclamation-triangle-fill"></i>
-                                {{ 'High' if student.risk_score > 80 else 'Medium' }}
+                                {{ level|capitalize }} ({{ perf }}%)
                             </span>
                         </td>
                         <td class="py-3 text-center">

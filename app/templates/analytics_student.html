@@ -92,7 +92,10 @@
                     {% elif risk.risk_level == 'high' %}High Risk
                     {% else %}Critical Risk{% endif %}
                 </div>
-                <p class="text-slate-400 text-sm">Risk Score: {{ risk.risk_score }}/100</p>
+                <p class="text-slate-400 text-sm">Overall performance: {{ risk.overall_score }}/100</p>
+                {% if risk.risk_factors %}
+                <p class="text-slate-500 text-xs mt-2">{{ risk.risk_factors|join(' • ') }}</p>
+                {% endif %}
             </div>
             <div class="text-right">
                 <div class="w-16 h-16 rounded-full flex items-center justify-center

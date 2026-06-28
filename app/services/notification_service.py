@@ -1,5 +1,6 @@
 from app.models.notification import Notification, InterventionMessage, NotificationType, NotificationPriority
 from app.models import User, Student, Lecturer, Course
+from app.services.risk_service import compute_student_metrics
 from app import db
 from flask import url_for
 
@@ -15,10 +16,13 @@ class NotificationService:
         """
         # Create intervention record
         risk_level = 'medium'
-        if hasattr(student, 'risk_scores') and student.risk_scores:
-            latest_risk = student.risk_scores[-1] if student.risk_scores else None
-            if latest_risk:
-                risk_level = 'high' if latest_risk.risk_score > 80 else 'medium'
+        metrics = compute_student_metrics(student.id, course_id=course.id if course else None)
+        if metrics.get('has_data'):
+            risk_level = metrics['risk_level']
+        elif hasattr(student, 'risk_scores') and student.risk_scores:
+            latest_risk = student.risk_scores[-1]
+            if latest_risk and latest_risk.risk_level:
+                risk_level = latest_risk.risk_level
         
         intervention = InterventionMessage(
             lecturer_id=lecturer.id,
@@ -63,18 +67,22 @@ class NotificationService:
         return intervention, notif
     
     @staticmethod
-    def notify_at_risk_alert(lecturer, student, course, risk_score):
-        """Alert lecturer about newly flagged at-risk student"""
+    def notify_at_risk_alert(lecturer, student, course, performance_score):
+        """Alert lecturer about a student flagged at risk (lower performance score = higher concern)."""
+        urgent = performance_score is not None and performance_score < 50
         notif = lecturer.user.add_notification(
             type=NotificationType.AT_RISK_ALERT.value,
             title=f"⚠️ At-Risk Student Alert",
-            message=f"{student.user.full_name} in {course.code} needs attention (Risk: {risk_score}%)",
-            priority=NotificationPriority.URGENT.value if risk_score > 80 else NotificationPriority.HIGH.value,
+            message=(
+                f"{student.user.full_name} in {course.code} needs attention "
+                f"(Overall performance: {performance_score:.0f}%)"
+            ),
+            priority=NotificationPriority.URGENT.value if urgent else NotificationPriority.HIGH.value,
             action_url=url_for('analytics.lecturer_analytics'),
             action_text="Review Student",
             entity_type='student',
             entity_id=student.id,
-            metadata={'risk_score': risk_score, 'course_id': course.id}
+            metadata={'performance_score': performance_score, 'course_id': course.id}
         )
         db.session.commit()
         return notif

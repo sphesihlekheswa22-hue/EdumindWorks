@@ -232,16 +232,24 @@
                 </div>
                 <div class="flex items-center gap-6 text-sm">
                     <div class="text-center">
+                        <p class="text-xs text-slate-400">Performance</p>
+                        <p class="font-bold text-red-400">{{ student.performance_score }}%</p>
+                    </div>
+                    <div class="text-center">
                         <p class="text-xs text-slate-400">Risk</p>
-                        <p class="font-bold text-red-400">{{ student.risk_score }}%</p>
+                        <p class="font-bold text-white capitalize">{{ student.risk_level }}</p>
                     </div>
                     <div class="text-center">
                         <p class="text-xs text-slate-400">Attendance</p>
                         <p class="font-bold text-white">{{ student.attendance }}%</p>
                     </div>
                     <div class="text-center">
-                        <p class="text-xs text-slate-400">Avg Score</p>
+                        <p class="text-xs text-slate-400">Avg Marks</p>
                         <p class="font-bold text-white">{{ student.avg_score }}%</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-xs text-slate-400">Quizzes</p>
+                        <p class="font-bold text-white">{{ student.quiz_score }}%</p>
                     </div>
                 </div>
                 <div class="ml-2">

@@ -10,7 +10,7 @@ class RiskScore(db.Model):
     student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
     course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=True)
     risk_level = db.Column(db.String(20), nullable=False)  # low, medium, high, critical
-    risk_score = db.Column(db.Float, nullable=False)  # 0-100
+    risk_score = db.Column(db.Float, nullable=False)  # overall performance score 0-100 (higher is better)
     attendance_score = db.Column(db.Float, nullable=True)
     quiz_score = db.Column(db.Float, nullable=True)
     assignment_score = db.Column(db.Float, nullable=True)
@@ -26,16 +26,10 @@ class RiskScore(db.Model):
         return f'<RiskScore Student {self.student_id} - Level {self.risk_level}>'
     
     def calculate_risk_level(self):
-        """Calculate risk level based on score."""
-        if self.risk_score >= 80:
-            return 'low'
-        elif self.risk_score >= 60:
-            return 'medium'
-        elif self.risk_score >= 40:
-            return 'high'
-        else:
-            return 'critical'
-    
+        """Calculate risk level from the stored performance score (higher score = lower risk)."""
+        score = self.overall_score if self.overall_score is not None else self.risk_score
+        return performance_level_from_score(score)
+
     def to_dict(self):
         import json
         return {
@@ -54,3 +48,13 @@ class RiskScore(db.Model):
             'recommendations': self.recommendations,
             'calculated_at': self.calculated_at.isoformat() if self.calculated_at else None
         }
+
+
+def performance_level_from_score(overall_score: float) -> str:
+    if overall_score >= 75:
+        return "low"
+    if overall_score >= 60:
+        return "medium"
+    if overall_score >= 50:
+        return "high"
+    return "critical"
