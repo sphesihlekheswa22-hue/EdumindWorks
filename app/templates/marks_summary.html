@@ -51,13 +51,16 @@
             </svg>
             <div class="absolute inset-0 flex flex-col items-center justify-center">
                 <span class="text-4xl font-display font-bold text-white" id="gpaDisplay">0.0</span>
-                <span class="text-xs text-slate-400 uppercase tracking-wider mt-1">GPA</span>
+                <span class="text-xs text-slate-400 uppercase tracking-wider mt-1">Overall %</span>
             </div>
         </div>
 
         <!-- GPA Details -->
         <div class="flex-1 text-center lg:text-left">
             <h2 class="font-display text-3xl font-bold text-white mb-2">Academic Performance</h2>
+            {% if primary_course_name %}
+            <p class="text-blue-300 text-sm mb-2">{{ primary_course_code }} — {{ primary_course_name }}</p>
+            {% endif %}
             <p class="text-slate-400 mb-6 max-w-xl">
                 {% if gpa >= 90 %}
                     Outstanding! You're in the top percentile. Keep up the excellent work!
@@ -113,12 +116,12 @@
                 {{ course.code[:2] }}
             </div>
             <span class="px-3 py-1 rounded-full text-sm font-bold 
-                {% if course.average >= 90 %}grade-a
-                {% elif course.average >= 80 %}grade-b
-                {% elif course.average >= 70 %}grade-c
-                {% elif course.average >= 60 %}grade-d
+                {% if course_data.average >= 90 %}grade-a
+                {% elif course_data.average >= 80 %}grade-b
+                {% elif course_data.average >= 70 %}grade-c
+                {% elif course_data.average >= 60 %}grade-d
                 {% else %}grade-f{% endif %}">
-                {{ "%.0f"|format(course.average) }}%
+                {{ "%.0f"|format(course_data.average|default(0)) }}%
             </span>
         </div>
         
@@ -157,6 +160,51 @@
     </div>
     {% endfor %}
 </div>
+
+{% if module_statuses %}
+<div class="bento-item glass-card p-6 mb-8 animate-slide-up">
+    <h3 class="font-display font-semibold text-lg text-white mb-2">Module Pass / Fail</h3>
+    <p class="text-xs text-slate-400 mb-6">Based on marks and quiz averages in your enrolled modules (passing = 55%+)</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+            <h4 class="text-sm font-semibold text-emerald-400 mb-3">Passing Modules</h4>
+            {% if passing_modules %}
+            <div class="space-y-2">
+                {% for row in passing_modules %}
+                <div class="flex items-center justify-between p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                    <div>
+                        <p class="text-sm text-white">{{ row.module_title }}</p>
+                        <p class="text-xs text-slate-500">{{ row.course.code }}</p>
+                    </div>
+                    <span class="text-sm font-bold text-emerald-400">{{ row.average|pct(1) }}%</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-slate-500">No passing modules yet.</p>
+            {% endif %}
+        </div>
+        <div>
+            <h4 class="text-sm font-semibold text-red-400 mb-3">Failing Modules</h4>
+            {% if failing_modules %}
+            <div class="space-y-2">
+                {% for row in failing_modules %}
+                <div class="flex items-center justify-between p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+                    <div>
+                        <p class="text-sm text-white">{{ row.module_title }}</p>
+                        <p class="text-xs text-slate-500">{{ row.course.code }}</p>
+                    </div>
+                    <span class="text-sm font-bold text-red-400">{{ row.average|pct(1) }}%</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-slate-500">No failing modules — great work!</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- Detailed Marks Table -->
 <div class="bento-item glass-card overflow-hidden animate-slide-up" style="animation-delay: 0.4s">
@@ -358,7 +406,7 @@
 <script>
     // Animate GPA on load
     document.addEventListener('DOMContentLoaded', () => {
-        const gpaValue = {{ gpa }};
+        const gpaValue = {{ gpa|default(0) }};
         const circle = document.getElementById('gpaCircle');
         const display = document.getElementById('gpaDisplay');
         

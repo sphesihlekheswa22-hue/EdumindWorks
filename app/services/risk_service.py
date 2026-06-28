@@ -13,6 +13,8 @@ from app.utils.app_time import app_now
 
 from app.utils.percentages import clamp_pct
 
+AT_RISK_THRESHOLD = 55.0
+
 
 def performance_level(overall_score: float) -> str:
     """Map overall performance (0-100, higher is better) to risk band."""
@@ -138,11 +140,7 @@ def compute_student_metrics(
         risk_factors.append(f"Assessment average below 55% ({assignment_score:.0f}%)")
 
     risk_level = performance_level(overall)
-    is_at_risk = overall < 60
-    if overall >= 70:
-        is_at_risk = False
-        if risk_level in ("high", "critical"):
-            risk_level = "medium" if overall < 75 else "low"
+    is_at_risk = overall < AT_RISK_THRESHOLD
 
     return {
         "has_data": True,

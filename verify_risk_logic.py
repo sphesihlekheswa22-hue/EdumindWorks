@@ -7,7 +7,7 @@ sys.path.insert(0, ".")
 
 from app import create_app
 from app.models import Enrollment
-from app.services.risk_service import compute_student_metrics, list_at_risk_students
+from app.services.risk_service import AT_RISK_THRESHOLD, compute_student_metrics, list_at_risk_students
 
 
 def main() -> int:
@@ -30,7 +30,7 @@ def main() -> int:
             )
             if not metrics["has_data"]:
                 continue
-            if metrics["overall_score"] >= 70 and metrics["is_at_risk"]:
+            if metrics["overall_score"] >= AT_RISK_THRESHOLD and metrics["is_at_risk"]:
                 wrongly_flagged.append(
                     (enrollment.student_id, metrics["overall_score"])
                 )

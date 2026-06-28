@@ -26,8 +26,14 @@
                     <h3 class="text-6xl font-bold font-display bg-gradient-to-r from-white via-blue-100 to-slate-400 bg-clip-text text-transparent mb-2">
                         {{ "%.1f"|format(gpa|default(0.0)) }}<span class="text-3xl text-slate-500 font-medium">/4.0</span>
                     </h3>
+                    {% if academic.primary_course_name %}
+                    <p class="text-sm text-blue-300/90 mb-1">{{ academic.primary_course_code }} — {{ academic.primary_course_name }}</p>
+                    {% endif %}
                     <p class="text-slate-400 text-sm max-w-xs leading-relaxed">
-                        Based on {{ completed_assignments|default(0) }} graded assignments and {{ recent_quizzes|length|default(0) }} recent assessments
+                        Overall grade: {{ grade_percentage|default(0)|pct(1) }}%
+                        {% if academic.is_at_risk %}
+                        <span class="text-red-400">• At risk — needs support</span>
+                        {% endif %}
                     </p>
                 </div>
                 
@@ -43,11 +49,11 @@
                         </defs>
                         <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="6"/>
                         <circle cx="50" cy="50" r="42" fill="none" stroke="url(#gpaGradient)" stroke-width="6" 
-                                stroke-dasharray="264" stroke-dashoffset="{{ 264 - ((gpa|default(0.0) / 4.0) * 264) }}" 
+                                stroke-dasharray="264" stroke-dashoffset="{{ 264 - ((grade_percentage|default(0) / 100) * 264) }}" 
                                 stroke-linecap="round" class="transition-all duration-1000 ease-out"/>
                     </svg>
                     <div class="absolute inset-0 flex items-center justify-center flex-col">
-                        <span class="text-3xl font-bold text-white">{{ ((gpa|default(0.0) / 4.0) * 100)|round(1) }}%</span>
+                        <span class="text-3xl font-bold text-white">{{ grade_percentage|default(0)|pct(1) }}%</span>
                         <span class="text-xs text-slate-400 uppercase tracking-wider mt-1">Grade</span>
                     </div>
                 </div>
@@ -230,6 +236,9 @@
                         </div>
                         <p class="text-sm text-slate-400 mb-3">
                             {{ course.credits|default(0) }} Credits • {{ course.modules|length|default(0) }} modules • {{ item.progress|default(0) }}% complete
+                            {% if item.academic_average is not none %}
+                            • <span class="text-{{ color }}-300">{{ item.academic_average|pct(1) }}% grade</span>
+                            {% endif %}
                         </p>
                         
                         <!-- Progress Bar -->
@@ -266,6 +275,51 @@
         </div>
         {% endif %}
     </div>
+
+    {% if academic.module_statuses %}
+    <div class="lg:col-span-3 glass-panel rounded-3xl p-6">
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h3 class="text-xl font-bold text-white">Module Results</h3>
+                <p class="text-xs text-slate-400 mt-1">Passing is {{ 55 }}%+ across marks and quizzes in each module</p>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% if academic.passing_modules %}
+            <div>
+                <h4 class="text-sm font-semibold text-emerald-400 mb-3">Passing</h4>
+                <div class="space-y-2">
+                    {% for row in academic.passing_modules %}
+                    <div class="flex items-center justify-between p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                        <div>
+                            <p class="text-sm text-white font-medium">{{ row.module_title }}</p>
+                            <p class="text-xs text-slate-400">{{ row.course.code }}</p>
+                        </div>
+                        <span class="text-sm font-bold text-emerald-400">{{ row.average|pct(1) }}%</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% if academic.failing_modules %}
+            <div>
+                <h4 class="text-sm font-semibold text-red-400 mb-3">Needs Improvement</h4>
+                <div class="space-y-2">
+                    {% for row in academic.failing_modules %}
+                    <div class="flex items-center justify-between p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+                        <div>
+                            <p class="text-sm text-white font-medium">{{ row.module_title }}</p>
+                            <p class="text-xs text-slate-400">{{ row.course.code }}</p>
+                        </div>
+                        <span class="text-sm font-bold text-red-400">{{ row.average|pct(1) }}%</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Right Column - Quick Actions & Activity -->
     <div class="space-y-6">

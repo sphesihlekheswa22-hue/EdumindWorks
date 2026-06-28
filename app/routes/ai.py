@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 from flask_login import login_required, current_user
 from datetime import datetime
 import json
-from app.utils.app_time import app_now, app_today
+from app.utils.app_time import app_now, app_today, APP_TIMEZONE_LABEL
 import requests
 import re
 from app import db
@@ -161,14 +161,21 @@ def _build_student_ai_context(student: Student, session: ChatSession | None = No
 def _build_ai_system_prompt(student: Student, session: ChatSession | None = None) -> str:
     """Strict EduMind-only tutor instructions plus live student enrollment data."""
     context = _build_student_ai_context(student, session)
+    today = app_now()
+    today_label = today.strftime("%A, %d %B %Y")
     return f"""You are EduMind AI Tutor, built into the EduMind Learning Management System (LMS).
+
+CURRENT DATE AND TIME (authoritative — always use this for "today", dates, and deadlines):
+- Today: {today_label}
+- Time: {today.strftime("%H:%M")} ({APP_TIMEZONE_LABEL})
 
 STRICT RULES — follow these on every reply:
 1. ONLY help with EduMind and this student's studies: enrolled courses/modules, materials, quizzes, assignments, marks, attendance, study plans, CV review within EduMind, and academic skills tied to their enrolled modules.
 2. If the question is unrelated (general trivia, news, sports, recipes, politics, other apps/websites, entertainment, personal life unrelated to studies, etc.), politely refuse. Say you only assist with their EduMind coursework and point them to their enrolled courses below.
 3. Use ONLY the student data below. Never invent courses, modules, grades, or deadlines. If something is missing, say it is not in EduMind data and tell them where to check in the app (Courses, Marks, Assignments, module pages).
 4. When asked what they are registered/enrolled for, list their ACTIVE ENROLLMENTS exactly as shown below.
-5. Keep answers clear, concise, and educational. Use examples from their enrolled subjects when possible.
+5. When asked what day or date it is today, answer using the CURRENT DATE AND TIME section above exactly.
+6. Keep answers clear, concise, and educational. Use examples from their enrolled subjects when possible.
 
 {context}
 """
@@ -193,6 +200,7 @@ def _is_edumind_related(message: str, session: ChatSession | None = None) -> boo
         "homework", "attendance", "material", "learn", "explain", "revise",
         "revision", "syllabus", "lecturer", "tutor", "subject", "topic", "notes",
         "progress", "cv", "career", "dashboard", "class", "semester", "module hub",
+        "today", "what day", "what date", "current date",
     )
     if any(keyword in msg_l for keyword in edu_keywords):
         return True
@@ -284,6 +292,19 @@ def _fallback_tutor_response(
     msg = (user_message or "").strip()
     msg_l = msg.lower()
     topic = (getattr(session, "topic", None) or "your subject").strip()
+
+    if student and any(
+        phrase in msg_l
+        for phrase in (
+            "what day", "what date", "today's date", "todays date", "what is today",
+            "current date", "what year", "what month", "which day",
+        )
+    ):
+        now = app_now()
+        return (
+            f"Today is **{now.strftime('%A, %d %B %Y')}**.\n\n"
+            f"Current time: **{now.strftime('%H:%M')}** ({APP_TIMEZONE_LABEL})."
+        )
 
     if student and not _is_edumind_related(msg, session):
         return _off_topic_refusal(student)
@@ -919,7 +940,7 @@ def view_study_plan(plan_id):
         .order_by(StudyPlanItem.order).all()
     
     from datetime import date
-    return render_template('student/study_plan.html', plan=plan, items=items, now=date.today())
+    return render_template('student/study_plan.html', plan=plan, items=items, now=app_today())
 
 
 @ai_bp.route('/study-plan/<int:item_id>/complete', methods=['POST'])

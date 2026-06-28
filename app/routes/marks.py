@@ -8,6 +8,8 @@ from datetime import datetime
 from http import HTTPStatus
 
 from app import db
+from app.services.academic_service import build_student_academic_summary
+from app.utils.percentages import clamp_pct
 from app.utils.app_time import app_now
 from app.utils.percentages import percentage_from_parts
 from app.models import Mark, Course, Student, Enrollment, Lecturer, User, Module
@@ -448,62 +450,52 @@ def my_marks() -> str:
     student: Student = Student.query.filter_by(
         user_id=current_user.id
     ).first_or_404()
-    
-    # Get all marks with module/course info
+
+    academic = build_student_academic_summary(student)
+    enrolled_course_ids = {row["course"].id for row in academic["course_summaries"]}
+
     marks: List[Mark] = Mark.query.filter_by(
         student_id=student.id
     ).order_by(Mark.marked_at.desc()).all()
-    
-    # Overall statistics
-    gpa: float = 0.0
-    if marks:
-        gpa = sum(m.percentage for m in marks) / len(marks)
+    marks = [
+        mark for mark in marks
+        if mark.module and mark.module.course_id in enrolled_course_ids
+    ]
 
-    # Group by course for template compatibility
     courses_data: List[Dict] = []
-    course_marks: Dict[int, List[Mark]] = {}
+    for row in academic["course_summaries"]:
+        course = row["course"]
+        course_marks = [
+            mark for mark in marks
+            if mark.module and mark.module.course_id == course.id
+        ]
+        courses_data.append({
+            'course': course,
+            'marks': course_marks,
+            'average': row["average"] or 0,
+            'highest': max((m.percentage for m in course_marks), default=0),
+            'lowest': min((m.percentage for m in course_marks), default=0),
+        })
 
-    for mark in marks:
-        if mark.module and mark.module.course:
-            cid = mark.module.course_id
-            if cid not in course_marks:
-                course_marks[cid] = []
-            course_marks[cid].append(mark)
-
-    for cid, course_marks_list in course_marks.items():
-        if course_marks_list and course_marks_list[0].module and course_marks_list[0].module.course:
-            course = course_marks_list[0].module.course
-            courses_data.append({
-                'course': course,
-                'marks': course_marks_list
-            })
-
-    # Calculate course averages
-    for course_data in courses_data:
-        if course_data['marks']:
-            percentages = [m.percentage for m in course_data['marks']]
-            course_data['average'] = sum(percentages) / len(percentages)
-            course_data['highest'] = max(percentages)
-            course_data['lowest'] = min(percentages)
-        else:
-            course_data['average'] = 0
-            course_data['highest'] = 0
-            course_data['lowest'] = 0
-
-    # Current semester placeholder
-    current_semester = "Fall 2024"
-
-    # Recent activity
     recent_marks: List[Mark] = marks[:5]
 
     return render_template(
         'marks_summary.html',
         marks=marks,
         courses=courses_data,
-        gpa=round(gpa, 2),
+        gpa=academic["overall_percentage"],
+        gpa_4=academic["gpa_4"],
         recent_marks=recent_marks,
-        total_modules=len(set(m.module_id for m in marks if m.module)),
-        current_semester=current_semester
+        total_modules=len(academic["module_statuses"]),
+        current_semester=academic["current_semester"],
+        primary_course=academic["primary_course"],
+        primary_course_name=academic["primary_course_name"],
+        primary_course_code=academic["primary_course_code"],
+        module_statuses=academic["module_statuses"],
+        passing_modules=academic["passing_modules"],
+        failing_modules=academic["failing_modules"],
+        is_at_risk=academic["is_at_risk"],
+        academic=academic,
     )
 
 

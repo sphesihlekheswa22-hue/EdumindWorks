@@ -3,10 +3,11 @@ from flask_login import login_required, current_user
 from datetime import datetime, timedelta
 from app import db
 from app.utils.app_time import app_now, app_today
+from app.services.academic_service import build_student_academic_summary
 from app.models import (
     User, Student, Lecturer, Course, Enrollment,
     Quiz, QuizResult, Attendance, Mark, StudyPlan, ChatSession, CVReview,
-    AssignmentSubmission
+    AssignmentSubmission, Module,
 )
 
 main_bp = Blueprint('main', __name__)
@@ -53,14 +54,20 @@ def student_dashboard():
         flash('Please complete your profile to continue.', 'info')
         return redirect(url_for('auth.complete_student_profile'))
 
-    # Get enrolled courses with progress
+    # Get enrolled courses with progress and academic averages
     enrollments = Enrollment.query.filter_by(student_id=student.id, status='active').all()
+    academic = build_student_academic_summary(student)
+    summary_by_course = {
+        row["course"].id: row for row in academic["course_summaries"]
+    }
     enrolled_courses = []
     for e in enrollments:
+        course_summary = summary_by_course.get(e.course_id, {})
         enrolled_courses.append({
             'course': e.course,
             'enrollment': e,
-            'progress': e.get_overall_progress()
+            'progress': e.get_overall_progress(),
+            'academic_average': course_summary.get('average'),
         })
     
     # Get recent quiz results
@@ -77,9 +84,9 @@ def student_dashboard():
     ai_session_count = ChatSession.query.filter_by(student_id=student.id).count()
 
     # Get upcoming assignments
-    from app.models import Assignment, Module
     course_ids = [e.course_id for e in enrollments]
     if course_ids:
+        from app.models import Assignment
         module_ids = [m.id for m in Module.query.filter(Module.course_id.in_(course_ids)).all()]
         upcoming_assignments = Assignment.query.filter(
             Assignment.module_id.in_(module_ids),
@@ -88,39 +95,41 @@ def student_dashboard():
         ).join(Assignment.module).join(Module.course).order_by(Assignment.due_date).limit(5).all()
     else:
         upcoming_assignments = []
-    
-    # Calculate GPA (convert percentage to 4.0 scale)
-    marks = Mark.query.filter_by(student_id=student.id).all()
-    gpa_percentage = sum(m.percentage for m in marks) / len(marks) if marks else 0
-    gpa = (gpa_percentage / 100) * 4.0  # Convert to 4.0 scale
-    
-    # Attendance rate
+
     attendance_records = Attendance.query.filter_by(student_id=student.id).all()
+    if course_ids:
+        enrolled_module_ids = {
+            module.id
+            for module in Module.query.filter(Module.course_id.in_(course_ids)).all()
+        }
+        attendance_records = [
+            record for record in attendance_records if record.module_id in enrolled_module_ids
+        ]
     attendance_rate = 0
     if attendance_records:
         present = sum(1 for a in attendance_records if a.status == 'present')
         attendance_rate = (present / len(attendance_records)) * 100
 
-    # Completed assignments
     completed_assignments = AssignmentSubmission.query.filter_by(
         student_id=student.id, status='graded'
     ).count()
 
-    # Overall GPA
-    overall_gpa = gpa
-    
-    return render_template('student/dashboard_student.html',
-                           enrolled_courses=enrolled_courses,
-                           recent_quizzes=recent_quizzes,
-                           study_plans=study_plans,
-                           chat_sessions=chat_sessions,
-                           ai_session_count=ai_session_count,
-                           upcoming_assignments=upcoming_assignments,
-                           gpa=round(gpa, 2),
-                           attendance_rate=round(attendance_rate, 1),
-                           completed_assignments=completed_assignments,
-                           overall_gpa=round(gpa, 1),
-                           student=student)
+    return render_template(
+        'student/dashboard_student.html',
+        enrolled_courses=enrolled_courses,
+        recent_quizzes=recent_quizzes,
+        study_plans=study_plans,
+        chat_sessions=chat_sessions,
+        ai_session_count=ai_session_count,
+        upcoming_assignments=upcoming_assignments,
+        gpa=academic["gpa_4"],
+        grade_percentage=academic["overall_percentage"],
+        academic=academic,
+        attendance_rate=round(attendance_rate, 1),
+        completed_assignments=completed_assignments,
+        overall_gpa=academic["gpa_4"],
+        student=student,
+    )
 
 
 @main_bp.route('/dashboard/lecturer')
