@@ -27,7 +27,7 @@
         <!-- Score Display -->
         <div class="flex items-center justify-center gap-8 mb-6">
             <div class="text-center">
-                <p class="text-4xl font-bold text-white mb-1">{{ result.percentage }}%</p>
+                <p class="text-4xl font-bold text-white mb-1">{{ result.percentage|pct(1) }}%</p>
                 <p class="text-sm text-slate-400">Your Score</p>
             </div>
             <div class="w-px h-12 bg-slate-700"></div>

@@ -226,8 +226,9 @@
       {% if recent_quizzes %}
         <div class="space-y-4">
           {% for result in recent_quizzes[:5] %}
-          {% set status_color = 'emerald' if result.percentage >= 70 else 'amber' if result.percentage >= 50 else 'red' %}
-          {% set status_icon = 'check-circle' if result.percentage >= 70 else 'exclamation-circle' if result.percentage >= 50 else 'x-circle' %}
+          {% set pct = result.percentage|pct_val %}
+          {% set status_color = 'emerald' if pct >= 70 else 'amber' if pct >= 50 else 'red' %}
+          {% set status_icon = 'check-circle' if pct >= 70 else 'exclamation-circle' if pct >= 50 else 'x-circle' %}
           
           <div class="flex items-center justify-between p-4 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors group">
             <div class="flex items-center gap-4">
@@ -241,7 +242,7 @@
             </div>
             <div class="text-right">
               <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-{{ status_color }}-500/20 text-{{ status_color }}-400">
-                {{ result.percentage }}%
+                {{ pct|pct(1) }}%
               </span>
               <p class="text-xs text-slate-500 mt-1">
                 {{ result.completed_at.strftime('%H:%M') if result.completed_at else 'Recently' }}

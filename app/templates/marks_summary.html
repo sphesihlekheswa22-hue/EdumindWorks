@@ -227,9 +227,9 @@
                         <div class="flex items-center justify-center gap-2">
                             <div class="w-12 h-1.5 bg-white/10 rounded-full overflow-hidden">
                                 <div class="h-full rounded-full {% if mark.percentage >= 80 %}bg-emerald-500{% elif mark.percentage >= 60 %}bg-amber-500{% else %}bg-red-500{% endif %}" 
-                                     style="width: {{ mark.percentage }}%"></div>
+                                     style="width: {{ mark.percentage|pct_val }}%"></div>
                             </div>
-                            <span class="text-sm font-semibold text-white w-12 text-right">{{ mark.percentage }}%</span>
+                            <span class="text-sm font-semibold text-white w-12 text-right">{{ mark.percentage|pct(1) }}%</span>
                         </div>
                     </td>
                     <td class="px-6 py-4 text-center">

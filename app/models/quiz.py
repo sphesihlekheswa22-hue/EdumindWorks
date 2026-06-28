@@ -1,6 +1,8 @@
 from app import db
 from app.utils.app_time import app_now, APP_TZ
+from app.utils.percentages import clamp_pct, percentage_from_parts
 import json
+from sqlalchemy import event
 
 
 class Quiz(db.Model):
@@ -264,6 +266,10 @@ class QuizResult(db.Model):
         if self.answers:
             return json.loads(self.answers)
         return {}
+
+    def sync_percentage(self) -> None:
+        """Recalculate percentage from score/total_points (0–100)."""
+        self.percentage = percentage_from_parts(self.score, self.total_points)
     
     def to_dict(self):
         return {
@@ -272,8 +278,14 @@ class QuizResult(db.Model):
             'student_id': self.student_id,
             'score': self.score,
             'total_points': self.total_points,
-            'percentage': self.percentage,
+            'percentage': clamp_pct(self.percentage),
             'passed': self.passed,
             'time_taken': self.time_taken,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None
         }
+
+
+@event.listens_for(QuizResult, "before_insert")
+@event.listens_for(QuizResult, "before_update")
+def _quiz_result_sync_percentage(_mapper, _connection, target: QuizResult) -> None:
+    target.sync_percentage()

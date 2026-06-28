@@ -89,7 +89,7 @@
                     {% endif %}
                 </div>
                 <div class="text-right">
-                    <div class="text-xl font-bold text-white">{{ mark.percentage|round(1) }}%</div>
+                    <div class="text-xl font-bold text-white">{{ mark.percentage|pct(1) }}%</div>
                     <div class="text-sm text-slate-400">{{ mark.mark }}/{{ mark.total_marks }}</div>
                     <div class="text-xs text-slate-500">{{ mark.marked_at.strftime('%b %d') if mark.marked_at else 'N/A' }}</div>
                 </div>

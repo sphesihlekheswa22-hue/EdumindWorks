@@ -275,9 +275,9 @@
                             <div class="flex items-center justify-center gap-2">
                                 <div class="w-16 h-2 bg-white/10 rounded-full overflow-hidden">
                                     <div class="h-full rounded-full {% if mark.percentage >= 80 %}bg-emerald-500{% elif mark.percentage >= 60 %}bg-amber-500{% else %}bg-red-500{% endif %}" 
-                                         style="width: {{ mark.percentage }}%"></div>
+                                         style="width: {{ mark.percentage|pct_val }}%"></div>
                                 </div>
-                                <span class="text-sm font-semibold text-white w-10">{{ mark.percentage }}%</span>
+                                <span class="text-sm font-semibold text-white w-10">{{ mark.percentage|pct(1) }}%</span>
                             </div>
                         </td>
                         <td class="px-6 py-4 text-center">
@@ -347,7 +347,7 @@
                 <p class="text-xs text-slate-500">{{ mark.updated_at.strftime('%b %d, %H:%M') if mark.updated_at else 'Just now' }}</p>
             </div>
             <span class="ml-2 px-2 py-0.5 rounded text-xs font-bold {% if mark.percentage >= 80 %}bg-emerald-500/20 text-emerald-400{% elif mark.percentage >= 60 %}bg-amber-500/20 text-amber-400{% else %}bg-red-500/20 text-red-400{% endif %}">
-                {{ mark.percentage }}%
+                {{ mark.percentage|pct(1) }}%
             </span>
         </div>
         {% endfor %}

@@ -789,10 +789,11 @@ def seed_quiz_results(quizzes, students):
         attempted_students = random.sample(students, num_results)
         
         for student in attempted_students:
-            score = random.randint(30, 100)
-            total = random.randint(50, 100)
+            total = quiz.total_points or sum(q.points for q in quiz.questions) or 100
+            total = max(1, int(total))
+            score = random.randint(0, total)
             percentage = (score / total) * 100
-            
+
             result = QuizResult(
                 quiz_id=quiz.id,
                 student_id=student.id,

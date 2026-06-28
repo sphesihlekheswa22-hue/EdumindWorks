@@ -11,6 +11,7 @@ from flask_login import login_required, current_user
 from datetime import datetime, time as time_of_day
 
 from app.utils.app_time import app_now
+from app.utils.percentages import percentage_from_parts
 from http import HTTPStatus
 
 from app import db
@@ -592,15 +593,8 @@ def submit_quiz(quiz_id: int) -> Union[redirect, tuple]:
             if answer and question.check_answer(answer):
                 score += question.points
         
-        # Calculate metrics
-        percentage: float = (score / total_points * 100) if total_points > 0 else 0
-        
-        # Cap percentage at 100 to prevent invalid values
-        if percentage > 100:
-            percentage = 100.0
-        elif percentage < 0:
-            percentage = 0.0
-        
+        # Calculate metrics (model sync also clamps on save)
+        percentage: float = percentage_from_parts(score, total_points)
         passed: bool = percentage >= quiz.passing_score
         
         time_taken: int = 0
@@ -613,7 +607,7 @@ def submit_quiz(quiz_id: int) -> Union[redirect, tuple]:
             student_id=student.id,
             score=score,
             total_points=total_points,
-            percentage=round(percentage, 2),
+            percentage=percentage,
             passed=passed,
             time_taken=time_taken,
             started_at=started_at or app_now()

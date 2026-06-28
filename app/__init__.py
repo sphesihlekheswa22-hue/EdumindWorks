@@ -88,6 +88,18 @@ def create_app(config_name='default'):
         text = re.sub(r'`(.+?)`', r'<code>\1</code>', text)
         text = re.sub(r'\n', '<br>', text)
         return text
+
+    from app.utils.percentages import clamp_pct, format_pct
+
+    @app.template_filter('pct')
+    def pct_filter(value, decimals=0):
+        """Clamp a value to 0–100 and format for display."""
+        return format_pct(value, int(decimals) if decimals is not None else 0)
+
+    @app.template_filter('pct_val')
+    def pct_val_filter(value):
+        """Clamp a value to 0–100 (numeric, for comparisons and bar widths)."""
+        return clamp_pct(value)
     
     # Initialize extensions
     db.init_app(app)

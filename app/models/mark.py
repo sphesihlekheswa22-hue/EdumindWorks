@@ -1,5 +1,7 @@
 from app import db
 from app.utils.app_time import app_now
+from app.utils.percentages import clamp_pct, percentage_from_parts
+from sqlalchemy import event
 
 
 class Mark(db.Model):
@@ -40,31 +42,34 @@ class Mark(db.Model):
     
     def calculate_grade(self):
         """Calculate letter grade based on percentage."""
-        if self.percentage is None:
-            return 'N/A'
-            
-        if self.percentage >= 90:
+        pct = clamp_pct(self.percentage)
+        if pct >= 90:
             return 'A+'
-        elif self.percentage >= 85:
+        elif pct >= 85:
             return 'A'
-        elif self.percentage >= 80:
+        elif pct >= 80:
             return 'A-'
-        elif self.percentage >= 75:
+        elif pct >= 75:
             return 'B+'
-        elif self.percentage >= 70:
+        elif pct >= 70:
             return 'B'
-        elif self.percentage >= 65:
+        elif pct >= 65:
             return 'B-'
-        elif self.percentage >= 60:
+        elif pct >= 60:
             return 'C+'
-        elif self.percentage >= 55:
+        elif pct >= 55:
             return 'C'
-        elif self.percentage >= 50:
+        elif pct >= 50:
             return 'C-'
-        elif self.percentage >= 45:
+        elif pct >= 45:
             return 'D'
         else:
             return 'F'
+
+    def sync_percentage(self) -> None:
+        """Recalculate percentage from mark/total_marks (0–100)."""
+        self.percentage = percentage_from_parts(self.mark, self.total_marks)
+        self.grade = self.calculate_grade()
     
     def can_record(self, user):
         """Check if user can record marks for this module."""
@@ -100,9 +105,15 @@ class Mark(db.Model):
             'assessment_name': self.assessment_name,
             'mark': self.mark,
             'total_marks': self.total_marks,
-            'percentage': self.percentage,
+            'percentage': clamp_pct(self.percentage),
             'grade': self.grade or self.calculate_grade(),
             'recorded_by': self.recorder.full_name if self.recorder else None,
             'feedback': self.feedback,
             'marked_at': self.marked_at.isoformat() if self.marked_at else None
         }
+
+
+@event.listens_for(Mark, "before_insert")
+@event.listens_for(Mark, "before_update")
+def _mark_sync_percentage(_mapper, _connection, target: Mark) -> None:
+    target.sync_percentage()

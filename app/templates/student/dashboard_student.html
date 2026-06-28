@@ -337,12 +337,13 @@
                 
                 {% if recent_quizzes %}
                     {% for result in recent_quizzes[:3] %}
+                    {% set pct = result.percentage|pct_val %}
                     <a href="{{ url_for('quizzes.quiz_result', result_id=result.id) }}" class="flex gap-3 group relative z-10">
                         <div class="w-4 h-4 rounded-full bg-blue-500/20 border border-blue-500/40 mt-1.5 flex-shrink-0 group-hover:bg-blue-500/40 transition-colors"></div>
                         <div class="flex-1 bg-white/5 rounded-xl p-3 hover:bg-white/[0.08] transition-colors border border-white/5">
                             <p class="text-sm text-white font-medium mb-1 group-hover:text-blue-300 transition-colors">Quiz: {{ result.quiz.title }}</p>
                             <div class="flex items-center gap-2 text-xs">
-                                <span class="{% if result.passed %}text-emerald-400{% else %}text-red-400{% endif %} font-medium">{{ result.percentage|round|int }}%</span>
+                                <span class="{% if result.passed %}text-emerald-400{% else %}text-red-400{% endif %} font-medium">{{ pct|pct }}%</span>
                                 <span class="text-slate-600">•</span>
                                 <span class="text-slate-500">
                                     {% if result.completed_at %}
@@ -401,6 +402,7 @@
         {% if recent_quizzes %}
         <div class="space-y-3">
             {% for result in recent_quizzes[:4] %}
+            {% set pct = result.percentage|pct_val %}
             <div class="flex items-center gap-4 p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] transition-all duration-300 border border-white/5 cursor-pointer group">
                 <!-- Score Circle -->
                 <div class="relative w-14 h-14 flex-shrink-0">
@@ -410,11 +412,11 @@
                                 stroke="{% if result.passed %}#10b981{% else %}#ef4444{% endif %}" 
                                 stroke-width="8" 
                                 stroke-dasharray="251" 
-                                stroke-dashoffset="{{ 251 - ((result.percentage|default(0) / 100) * 251) }}" 
+                                stroke-dashoffset="{{ 251 - ((pct / 100) * 251) }}" 
                                 stroke-linecap="round" class="transition-all duration-1000"/>
                     </svg>
                     <div class="absolute inset-0 flex items-center justify-center">
-                        <span class="text-sm font-bold {% if result.passed %}text-emerald-400{% else %}text-red-400{% endif %}">{{ result.percentage|round|int }}</span>
+                        <span class="text-sm font-bold {% if result.passed %}text-emerald-400{% else %}text-red-400{% endif %}">{{ pct|pct }}</span>
                     </div>
                 </div>
                 

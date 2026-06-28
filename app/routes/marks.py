@@ -9,6 +9,7 @@ from http import HTTPStatus
 
 from app import db
 from app.utils.app_time import app_now
+from app.utils.percentages import percentage_from_parts
 from app.models import Mark, Course, Student, Enrollment, Lecturer, User, Module
 from app.models.lecturer import LecturerModule
 from app.utils.access_control import (
@@ -285,12 +286,7 @@ def enter_marks(module_id: int) -> Union[str, redirect]:
                     )
                     continue
 
-                percentage: float = (mark_value / total_marks) * 100
-
-                if percentage > 100:
-                    percentage = 100.0
-                elif percentage < 0:
-                    percentage = 0.0
+                percentage: float = percentage_from_parts(mark_value, total_marks)
 
                 existing: Optional[Mark] = Mark.query.filter_by(
                     module_id=module_id,

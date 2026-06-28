@@ -11,12 +11,7 @@ from app.models import Attendance, Course, Enrollment, Mark, Module, Quiz, QuizR
 from app.utils.app_time import app_now
 
 
-def clamp_pct(value) -> float:
-    try:
-        number = float(value or 0)
-    except (TypeError, ValueError):
-        return 0.0
-    return max(0.0, min(100.0, number))
+from app.utils.percentages import clamp_pct
 
 
 def performance_level(overall_score: float) -> str:

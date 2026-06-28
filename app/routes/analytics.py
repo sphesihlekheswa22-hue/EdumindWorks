@@ -9,7 +9,8 @@ from app.models import (
     Attendance, Mark, CourseMaterial, Quiz, Module,
     ChatSession, ChatMessage,
 )
-from app.services.risk_service import clamp_pct, compute_student_metrics, count_at_risk_students, list_at_risk_students
+from app.services.risk_service import compute_student_metrics, count_at_risk_students, list_at_risk_students
+from app.utils.percentages import clamp_pct, format_pct
 
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/analytics')
 
@@ -82,8 +83,8 @@ def admin_analytics():
     ]
     
     # Quiz performance + overall performance (marks)
-    avg_quiz_score = float(db.session.query(func.avg(QuizResult.percentage)).scalar() or 0)
-    avg_performance = float(db.session.query(func.avg(Mark.percentage)).scalar() or 0)
+    avg_quiz_score = clamp_pct(db.session.query(func.avg(QuizResult.percentage)).scalar() or 0)
+    avg_performance = clamp_pct(db.session.query(func.avg(Mark.percentage)).scalar() or 0)
 
     # AI usage
     ai_sessions = ChatSession.query.count()
@@ -124,7 +125,7 @@ def admin_analytics():
         recent_activity.append({
             'type': 'quiz',
             'title': 'Quiz submitted',
-            'detail': f'{r.quiz.title if r.quiz else "Quiz"} • {r.percentage:.1f}%',
+            'detail': f'{r.quiz.title if r.quiz else "Quiz"} • {format_pct(r.percentage, 1)}%',
             'timestamp': r.completed_at,
         })
     recent_activity = sorted(
@@ -400,11 +401,11 @@ def student_analytics():
     
     # Academic performance
     marks = Mark.query.filter_by(student_id=student.id).all()
-    avg_mark = sum(m.percentage for m in marks) / len(marks) if marks else 0
+    avg_mark = clamp_pct(sum(m.percentage for m in marks) / len(marks) if marks else 0)
     
     # Quiz performance
     quiz_results = QuizResult.query.filter_by(student_id=student.id).all()
-    avg_quiz = sum(r.percentage for r in quiz_results) / len(quiz_results) if quiz_results else 0
+    avg_quiz = clamp_pct(sum(r.percentage for r in quiz_results) / len(quiz_results) if quiz_results else 0)
     quizzes_passed = sum(1 for r in quiz_results if r.passed)
     
     # Attendance
