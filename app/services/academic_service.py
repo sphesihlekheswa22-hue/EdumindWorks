@@ -195,3 +195,55 @@ def build_student_academic_summary(student: Student) -> dict:
         "total_assessments": total_marks + total_quizzes,
         "enrolled_course_count": len(course_summaries),
     }
+
+
+def _struggling_quiz_target_pct(student_id: int, quiz_id: int, passing_score: int) -> float:
+    """Stable low score for a given student/quiz pair (32–52% band)."""
+    import random
+
+    rng = random.Random(student_id * 10_000 + quiz_id)
+    upper = min(52.0, max(33.0, float(passing_score) - 1))
+    return round(rng.uniform(32.0, upper), 1)
+
+
+def rebalance_at_risk_quiz_scores() -> dict:
+    """Lower inflated quiz scores for students who are failing / at risk."""
+    from app.utils.percentages import percentage_from_parts
+
+    updated = 0
+    students_adjusted = 0
+
+    for student in Student.query.all():
+        if not Enrollment.query.filter_by(student_id=student.id, status="active").first():
+            continue
+
+        summary = build_student_academic_summary(student)
+        struggling = bool(summary.get("is_at_risk")) or summary.get("overall_percentage", 100) < AT_RISK_THRESHOLD
+        if not struggling:
+            continue
+
+        student_updates = 0
+        for result in QuizResult.query.filter_by(student_id=student.id).all():
+            if result.percentage <= AT_RISK_THRESHOLD:
+                continue
+
+            quiz = result.quiz
+            passing_score = int(quiz.passing_score or 60) if quiz else 60
+            target_pct = _struggling_quiz_target_pct(student.id, result.quiz_id, passing_score)
+            total = float(result.total_points or 100)
+            result.score = round(total * target_pct / 100, 1)
+            result.percentage = percentage_from_parts(result.score, total)
+            result.passed = result.percentage >= passing_score
+            student_updates += 1
+
+        if student_updates:
+            students_adjusted += 1
+            updated += student_updates
+
+    if updated:
+        db.session.commit()
+
+    return {
+        "students_adjusted": students_adjusted,
+        "quiz_results_updated": updated,
+    }
