@@ -159,6 +159,7 @@
             <i class="bi bi-trophy text-amber-400"></i>
             Student Scores (your assigned modules)
         </h3>
+        <p class="text-xs text-slate-500 mb-4">Overall is the average of marks and quiz scores in your modules. Attendance is shown separately below.</p>
         {% if student_scores %}
         <div class="overflow-x-auto">
             <table class="w-full text-left">
@@ -174,9 +175,15 @@
                     {% for s in student_scores[:20] %}
                     <tr class="hover:bg-white/5 transition-colors">
                         <td class="py-3 text-sm text-white font-medium">{{ s.name }}</td>
-                        <td class="py-3 text-right text-sm text-slate-300">{{ s.avg_marks }}%</td>
-                        <td class="py-3 text-right text-sm text-slate-300">{{ s.avg_quizzes }}%</td>
-                        <td class="py-3 text-right text-sm font-semibold text-white">{{ s.overall }}%</td>
+                        <td class="py-3 text-right text-sm text-slate-300">
+                            {% if s.avg_marks is not none %}{{ s.avg_marks }}%{% else %}<span class="text-slate-500">—</span>{% endif %}
+                        </td>
+                        <td class="py-3 text-right text-sm text-slate-300">
+                            {% if s.avg_quizzes is not none %}{{ s.avg_quizzes }}%{% else %}<span class="text-slate-500">—</span>{% endif %}
+                        </td>
+                        <td class="py-3 text-right text-sm font-semibold text-white">
+                            {% if s.overall is not none %}{{ s.overall }}%{% else %}<span class="text-slate-500">—</span>{% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

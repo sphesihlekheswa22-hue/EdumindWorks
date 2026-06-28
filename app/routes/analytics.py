@@ -9,8 +9,13 @@ from app.models import (
     Attendance, Mark, CourseMaterial, Quiz, Module,
     ChatSession, ChatMessage,
 )
-from app.services.risk_service import compute_student_metrics, count_at_risk_students, list_at_risk_students
 from app.utils.percentages import clamp_pct, format_pct
+from app.services.risk_service import (
+    compute_academic_scores,
+    compute_student_metrics,
+    count_at_risk_students,
+    list_at_risk_students,
+)
 
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/analytics')
 
@@ -265,15 +270,15 @@ def lecturer_analytics():
             if not student or not student.user:
                 continue
 
-            metrics = compute_student_metrics(sid, module_ids=module_ids)
+            metrics = compute_academic_scores(sid, module_ids=module_ids)
             if not metrics["has_data"]:
                 continue
 
             student_scores.append({
                 "student_id": sid,
                 "name": student.user.full_name,
-                "avg_marks": metrics["assignment_score"] or 0,
-                "avg_quizzes": metrics["quiz_score"] or 0,
+                "avg_marks": metrics["assignment_score"],
+                "avg_quizzes": metrics["quiz_score"],
                 "overall": metrics["overall_score"],
             })
 

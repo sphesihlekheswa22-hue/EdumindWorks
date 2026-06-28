@@ -25,6 +25,46 @@ def performance_level(overall_score: float) -> str:
     return "critical"
 
 
+def compute_academic_scores(
+    student_id: int,
+    course_id: Optional[int] = None,
+    module_ids: Optional[list[int]] = None,
+) -> dict:
+    """Marks and quiz averages for lecturer dashboards (attendance excluded)."""
+    if module_ids is None and course_id:
+        module_ids = [module.id for module in Module.query.filter_by(course_id=course_id).all()]
+
+    scoped_modules = module_ids or []
+
+    marks_query = Mark.query.filter(Mark.student_id == student_id)
+    if scoped_modules:
+        marks_query = marks_query.filter(Mark.module_id.in_(scoped_modules))
+    marks = marks_query.all()
+    assignment_score = (
+        round(clamp_pct(sum(mark.percentage for mark in marks) / len(marks)), 1) if marks else None
+    )
+
+    quiz_query = (
+        db.session.query(func.avg(QuizResult.percentage))
+        .join(Quiz, QuizResult.quiz_id == Quiz.id)
+        .filter(QuizResult.student_id == student_id)
+    )
+    if scoped_modules:
+        quiz_query = quiz_query.filter(Quiz.module_id.in_(scoped_modules))
+    quiz_average = quiz_query.scalar()
+    quiz_score = round(clamp_pct(quiz_average), 1) if quiz_average is not None else None
+
+    score_parts = [score for score in (assignment_score, quiz_score) if score is not None]
+    overall_score = round(sum(score_parts) / len(score_parts), 1) if score_parts else None
+
+    return {
+        "has_data": bool(score_parts),
+        "assignment_score": assignment_score,
+        "quiz_score": quiz_score,
+        "overall_score": overall_score,
+    }
+
+
 def compute_student_metrics(
     student_id: int,
     course_id: Optional[int] = None,
