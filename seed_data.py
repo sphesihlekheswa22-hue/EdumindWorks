@@ -778,21 +778,34 @@ def seed_quiz_questions(quizzes):
     return questions
 
 def seed_quiz_results(quizzes, students):
-    """Create quiz results."""
+    """Create quiz results aligned with student performance tiers."""
     print("Seeding Quiz Results...")
-    
+    from app.utils.percentages import percentage_from_parts
+
     results = []
-    
+    tier_choices = (["struggling"] * 3) + (["average"] * 5) + (["strong"] * 2)
+    student_tiers = {student.id: random.choice(tier_choices) for student in students}
+
+    def score_for_tier(tier: str, total: int, passing_score: int) -> tuple[float, float, bool]:
+        if tier == "struggling":
+            target_pct = random.uniform(32, min(52, max(33, passing_score - 1)))
+        elif tier == "average":
+            target_pct = random.uniform(58, 76)
+        else:
+            target_pct = random.uniform(82, 98)
+        score = round(total * target_pct / 100, 1)
+        percentage = percentage_from_parts(score, total)
+        return score, percentage, percentage >= passing_score
+
     for quiz in quizzes:
-        # Add results for 3-6 random students
         num_results = random.randint(3, min(6, len(students)))
         attempted_students = random.sample(students, num_results)
-        
+
         for student in attempted_students:
             total = quiz.total_points or sum(q.points for q in quiz.questions) or 100
             total = max(1, int(total))
-            score = random.randint(0, total)
-            percentage = (score / total) * 100
+            tier = student_tiers.get(student.id, "average")
+            score, percentage, passed = score_for_tier(tier, total, quiz.passing_score or 60)
 
             result = QuizResult(
                 quiz_id=quiz.id,
@@ -800,14 +813,14 @@ def seed_quiz_results(quizzes, students):
                 score=score,
                 total_points=total,
                 percentage=percentage,
-                passed=percentage >= quiz.passing_score,
+                passed=passed,
                 time_taken=random.randint(300, 3600),
                 started_at=datetime.now() - timedelta(days=random.randint(1, 30)),
                 completed_at=datetime.now() - timedelta(days=random.randint(0, 29))
             )
             db.session.add(result)
             results.append(result)
-    
+
     db.session.commit()
     print(f"  Created {len(results)} quiz results")
     return results
