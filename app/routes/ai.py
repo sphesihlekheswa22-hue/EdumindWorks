@@ -418,7 +418,7 @@ def ai_test():
     if provider == "ollama":
         client = get_ai_client()
         if not client:
-            return jsonify({"error": "Ollama not configured"}), 500
+            return jsonify({"error": "Ollama not configured"}), 503
         try:
             text = _ollama_chat(
                 [{"role": "user", "content": "Say hello in one sentence."}],
@@ -428,11 +428,11 @@ def ai_test():
             )
             return jsonify({"provider": "ollama", "reply": text})
         except Exception as e:
-            return jsonify({"error": str(e), "hint": "Is Ollama running? Try: ollama serve && ollama pull " + client.get("model", "llama3.2")}), 500
+            return jsonify({"error": str(e), "hint": "Is Ollama running? Try: ollama serve && ollama pull " + client.get("model", "llama3.2")}), 503
 
     api_key = current_app.config.get('OPENROUTER_API_KEY')
     if not api_key:
-        return jsonify({'error': 'API key not configured'}), 500
+        return jsonify({'error': 'API key not configured'}), 503
 
     try:
         response = requests.post(
@@ -452,7 +452,7 @@ def ai_test():
             'response': response.json()
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e)}), 503
 
 
 def get_ai_client():

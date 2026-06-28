@@ -7,6 +7,7 @@ import sys
 sys.path.insert(0, ".")
 from app import create_app, db  # noqa: E402
 from app.models import User, Lecturer, LecturerModule  # noqa: E402
+from app.utils.login_helpers import institutional_login_id_for  # noqa: E402
 
 
 def _csrf(html: bytes) -> str | None:
@@ -41,11 +42,18 @@ def main() -> int:
         ):
             if not user:
                 continue
+            with app.app_context():
+                login_id = institutional_login_id_for(user)
             login_page = client.get("/auth/login")
             tok = _csrf(login_page.data)
             client.post(
                 "/auth/login",
-                data={"email": user.email, "password": pw, "csrf_token": tok or ""},
+                data={
+                    "institutional_id": login_id,
+                    "password": pw,
+                    "remember": "no",
+                    "csrf_token": tok or "",
+                },
                 follow_redirects=True,
             )
 

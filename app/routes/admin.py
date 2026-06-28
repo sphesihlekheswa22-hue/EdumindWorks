@@ -237,9 +237,13 @@ def toggle_user_active(user_id: int) -> Union[str, tuple]:
 @login_required
 @admin_required
 def view_user(user_id: int) -> str:
-    """Display user profile."""
-    user: User = User.query.get_or_404(user_id)
-    return render_template('profile.html', user=user)
+    """Display user profile for admin review."""
+    user: User = User.query.options(
+        joinedload(User.student).joinedload(Student.enrollments).joinedload(Enrollment.course),
+        joinedload(User.lecturer),
+        joinedload(User.staff_profile),
+    ).get_or_404(user_id)
+    return render_template('admin/admin_user_view.html', user=user)
 
 
 @admin_bp.route('/users/<int:user_id>/edit', methods=['GET', 'POST'])

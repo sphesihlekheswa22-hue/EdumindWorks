@@ -8,7 +8,10 @@ from app.models import Student
 
 class LoginForm(FlaskForm):
     """User login form."""
-    institutional_id = StringField('Student/Staff Number', validators=[DataRequired(), Length(min=4, max=20)])
+    institutional_id = StringField(
+        'Student/Staff Number or Email',
+        validators=[DataRequired(), Length(min=4, max=120)],
+    )
     password = PasswordField('Password', validators=[DataRequired()])
     remember = SelectField('Remember Me', choices=[
         ('yes', 'Yes'),

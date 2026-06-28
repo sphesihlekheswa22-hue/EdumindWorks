@@ -13,6 +13,7 @@ from http import HTTPStatus
 from app import db
 from app.utils.app_time import app_now
 from app.models import User, Student, Lecturer, Course, Enrollment, StaffProfile
+from app.utils.login_helpers import resolve_user_from_login_id
 from app.forms.auth_forms import (
     LoginForm,
     StudentProfileForm, StudentCompleteProfileForm, LecturerProfileForm,
@@ -35,9 +36,8 @@ def redirect_authenticated_user() -> Optional[str]:
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register() -> redirect:
     """Public registration is disabled (institutional LMS)."""
-    # Make the registration page unavailable even if someone types the URL directly.
-    from flask import abort
-    abort(404)
+    flash('Registration is managed by your institution. Please sign in with your student or staff number.', 'info')
+    return redirect(url_for('auth.login'))
 
 
 def _save_profile_photo(student: Student, file_storage) -> Optional[str]:
@@ -201,21 +201,7 @@ def login() -> Union[str, redirect]:
     
     if form.validate_on_submit():
         institutional_id = (form.institutional_id.data or "").strip()
-
-        user: Optional[User] = None
-        # Student login via student number
-        student = Student.query.filter_by(student_id=institutional_id).first()
-        if student and student.user:
-            user = student.user
-        else:
-            # Lecturer login via staff number (employee_id)
-            lecturer = Lecturer.query.filter_by(employee_id=institutional_id).first()
-            if lecturer and lecturer.user:
-                user = lecturer.user
-            else:
-                staff = StaffProfile.query.filter_by(staff_number=institutional_id).first()
-                if staff and staff.user:
-                    user = staff.user
+        user = resolve_user_from_login_id(institutional_id)
 
         if user and user.check_password(form.password.data):
             if not user.is_active:
@@ -232,7 +218,7 @@ def login() -> Union[str, redirect]:
             flash(f'Welcome back, {user.first_name}!', 'success')
             return redirect(next_page)
         
-        flash('Invalid student/staff number or password.', 'danger')
+        flash('Invalid student/staff number, email, or password.', 'danger')
         return render_template('auth/login.html', form=form), HTTPStatus.UNAUTHORIZED
     
     return render_template('auth/login.html', form=form)

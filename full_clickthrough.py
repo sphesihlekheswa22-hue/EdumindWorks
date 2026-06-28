@@ -37,6 +37,7 @@ from app.models import (  # noqa: E402
     StudyPlanItem,
     User,
 )
+from app.utils.login_helpers import institutional_login_id_for  # noqa: E402
 
 SKIP_ENDPOINTS_PREFIX = (
     "auth.reset_password",
@@ -63,9 +64,15 @@ def login(client, user: User) -> None:
     pw = PASSWORDS.get(user.role, "student123")
     r = client.get("/auth/login")
     tok = _csrf(r.data) or ""
+    login_id = institutional_login_id_for(user)
     client.post(
         "/auth/login",
-        data={"email": user.email, "password": pw, "csrf_token": tok},
+        data={
+            "institutional_id": login_id,
+            "password": pw,
+            "remember": "no",
+            "csrf_token": tok,
+        },
         follow_redirects=True,
     )
 

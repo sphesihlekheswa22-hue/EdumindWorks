@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}View User - EduMind AI{% endblock %}
+
+{% block page_title %}User Profile{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <div class="mb-6 flex items-center justify-between">
+        <a href="{{ url_for('admin.users') }}" class="text-sm text-slate-400 hover:text-white transition-colors flex items-center gap-2">
+            <i class="bi bi-arrow-left"></i>
+            Back to Users
+        </a>
+        <a href="{{ url_for('admin.edit_user', user_id=user.id) }}"
+           class="px-4 py-2 rounded-xl bg-blue-500 hover:bg-blue-400 text-white text-sm font-medium transition-colors">
+            Edit User
+        </a>
+    </div>
+
+    <div class="glass-card rounded-2xl p-8 border border-white/10">
+        <div class="flex items-center gap-4 mb-8 pb-6 border-b border-white/5">
+            <div class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold">
+                {{ user.first_name[:1].upper() if user.first_name else '?' }}{{ user.last_name[:1].upper() if user.last_name else '' }}
+            </div>
+            <div>
+                <h2 class="text-2xl font-bold text-white">{{ user.full_name or 'Unnamed User' }}</h2>
+                <p class="text-sm text-slate-400">{{ user.email }}</p>
+            </div>
+        </div>
+
+        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
+            <div>
+                <dt class="text-slate-500 mb-1">Role</dt>
+                <dd class="text-white font-medium">{{ user.role.replace('_', ' ').title() }}</dd>
+            </div>
+            <div>
+                <dt class="text-slate-500 mb-1">Status</dt>
+                <dd class="text-white font-medium">{{ 'Active' if user.is_active else 'Inactive' }}</dd>
+            </div>
+            <div>
+                <dt class="text-slate-500 mb-1">User ID</dt>
+                <dd class="text-white font-mono">{{ user.id }}</dd>
+            </div>
+            <div>
+                <dt class="text-slate-500 mb-1">Institutional ID</dt>
+                <dd class="text-white font-mono">
+                    {% if user.role == 'student' and user.student %}
+                        {{ user.student.student_id }}
+                    {% elif user.role == 'lecturer' and user.lecturer %}
+                        {{ user.lecturer.employee_id }}
+                    {% elif user.staff_profile %}
+                        {{ user.staff_profile.staff_number }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </dd>
+            </div>
+            {% if user.role == 'student' and user.student and user.student.program %}
+            <div>
+                <dt class="text-slate-500 mb-1">Program</dt>
+                <dd class="text-white">{{ user.student.program }}</dd>
+            </div>
+            {% endif %}
+            <div>
+                <dt class="text-slate-500 mb-1">Joined</dt>
+                <dd class="text-white">{{ user.created_at.strftime('%b %d, %Y') if user.created_at else '—' }}</dd>
+            </div>
+        </dl>
+
+        {% if user.role == 'student' and user.student %}
+        <div class="mt-8 pt-6 border-t border-white/5">
+            <h3 class="text-sm font-semibold text-slate-300 mb-3">Active Enrollments</h3>
+            {% set active_enrollments = user.student.enrollments|selectattr('status', 'equalto', 'active')|list %}
+            {% if active_enrollments %}
+            <ul class="space-y-2">
+                {% for enrollment in active_enrollments %}
+                <li class="text-sm text-slate-300">
+                    <span class="font-mono text-blue-300">{{ enrollment.course.code if enrollment.course else '?' }}</span>
+                    — {{ enrollment.course.name if enrollment.course else 'Unknown course' }}
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-sm text-slate-500">No active course enrollments.</p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

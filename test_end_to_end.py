@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app import create_app, db
 from app.models import User, Student, Lecturer, LecturerModule, Course, Module, Enrollment, CourseMaterial, Quiz, Assignment, Attendance, Mark
+from app.utils.login_helpers import institutional_login_id_for
 
 # Must match passwords set in seed_data.py (run: python seed_data.py)
 def _password_for_user(user):
@@ -62,8 +63,9 @@ def test_user_flows():
                 
                 # Login
                 resp = client.post('/auth/login', data={
-                    'email': student_user.email,
+                    'institutional_id': institutional_login_id_for(student_user),
                     'password': _password_for_user(student_user),
+                    'remember': 'no',
                     'csrf_token': csrf_token
                 }, follow_redirects=True)
                 
@@ -99,8 +101,9 @@ def test_user_flows():
                 
                 # Login
                 resp = client.post('/auth/login', data={
-                    'email': lecturer_user.email,
+                    'institutional_id': institutional_login_id_for(lecturer_user),
                     'password': _password_for_user(lecturer_user),
+                    'remember': 'no',
                     'csrf_token': csrf_token
                 }, follow_redirects=True)
                 
@@ -274,8 +277,9 @@ def test_user_flows():
                 csrf_token = get_csrf_token(login_page.data)
                 
                 resp = client.post('/auth/login', data={
-                    'email': admin_user.email,
+                    'institutional_id': institutional_login_id_for(admin_user),
                     'password': _password_for_user(admin_user),
+                    'remember': 'no',
                     'csrf_token': csrf_token
                 }, follow_redirects=True)
                 
