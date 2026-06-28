@@ -472,9 +472,11 @@ def my_marks() -> str:
         courses_data.append({
             'course': course,
             'marks': course_marks,
-            'average': row["average"] or 0,
-            'highest': max((m.percentage for m in course_marks), default=0),
-            'lowest': min((m.percentage for m in course_marks), default=0),
+            'average': row["display_average"] if row["display_average"] is not None else 0,
+            'marks_count': row.get("marks_count", len(course_marks)),
+            'quiz_count': row.get("quiz_count", 0),
+            'highest': row.get("highest"),
+            'lowest': row.get("lowest"),
         })
 
     recent_marks: List[Mark] = marks[:5]

@@ -70,6 +70,10 @@ def build_student_academic_summary(student: Student) -> dict:
         "current_semester": "Current Semester",
         "passing_modules": [],
         "failing_modules": [],
+        "total_marks": 0,
+        "total_quizzes": 0,
+        "total_assessments": 0,
+        "enrolled_course_count": 0,
     }
     if not enrollments:
         return empty
@@ -98,13 +102,46 @@ def build_student_academic_summary(student: Student) -> dict:
         if risk.get("is_at_risk"):
             is_at_risk = True
 
+        course_marks = Mark.query.filter(
+            Mark.student_id == student.id,
+            Mark.module_id.in_(course_module_ids),
+        ).all() if course_module_ids else []
+        quiz_results = (
+            QuizResult.query.join(Quiz, QuizResult.quiz_id == Quiz.id)
+            .filter(
+                QuizResult.student_id == student.id,
+                Quiz.module_id.in_(course_module_ids),
+            )
+            .all()
+            if course_module_ids
+            else []
+        )
+
+        if risk.get("is_at_risk") and risk.get("overall_score") is not None:
+            display_average = risk["overall_score"]
+        elif academic["overall_score"] is not None:
+            display_average = academic["overall_score"]
+        elif risk.get("has_data"):
+            display_average = risk.get("overall_score")
+        else:
+            display_average = None
+
+        score_samples = [mark.percentage for mark in course_marks] + [
+            result.percentage for result in quiz_results
+        ]
+
         course_summaries.append(
             {
                 "course": course,
                 "enrollment": enrollment,
-                "average": academic["overall_score"],
+                "average": display_average,
+                "display_average": display_average,
                 "marks_avg": academic["assignment_score"],
                 "quiz_avg": academic["quiz_score"],
+                "marks_count": len(course_marks),
+                "quiz_count": len(quiz_results),
+                "highest": round(max(score_samples), 1) if score_samples else None,
+                "lowest": round(min(score_samples), 1) if score_samples else None,
                 "is_at_risk": bool(risk.get("is_at_risk")),
                 "risk_score": risk.get("overall_score"),
             }
@@ -122,18 +159,20 @@ def build_student_academic_summary(student: Student) -> dict:
             )
 
     primary = course_summaries[0]
-    course_scores = [row["average"] for row in course_summaries if row["average"] is not None]
-    overall_percentage = round(sum(course_scores) / len(course_scores), 1) if course_scores else 0.0
+    course_scores = [
+        row["display_average"]
+        for row in course_summaries
+        if row["display_average"] is not None
+    ]
+    overall_percentage = (
+        round(sum(course_scores) / len(course_scores), 1) if course_scores else 0.0
+    )
 
-    if is_at_risk:
-        risk_scores = [
-            row["risk_score"]
-            for row in course_summaries
-            if row.get("is_at_risk") and row.get("risk_score") is not None
-        ]
-        if risk_scores:
-            overall_percentage = round(min(risk_scores), 1)
-        overall_percentage = min(overall_percentage, AT_RISK_THRESHOLD - 0.1)
+    if is_at_risk and overall_percentage >= AT_RISK_THRESHOLD:
+        overall_percentage = round(min(overall_percentage, AT_RISK_THRESHOLD - 0.1), 1)
+
+    total_marks = sum(row["marks_count"] for row in course_summaries)
+    total_quizzes = sum(row["quiz_count"] for row in course_summaries)
 
     gpa_4 = round((overall_percentage / 100) * 4.0, 2)
     passing_modules = [row for row in module_statuses if row["passing"]]
@@ -151,4 +190,8 @@ def build_student_academic_summary(student: Student) -> dict:
         "current_semester": primary["course"].semester or "Current Semester",
         "passing_modules": passing_modules,
         "failing_modules": failing_modules,
+        "total_marks": total_marks,
+        "total_quizzes": total_quizzes,
+        "total_assessments": total_marks + total_quizzes,
+        "enrolled_course_count": len(course_summaries),
     }
