@@ -115,12 +115,18 @@
                 {{ course.code[:2] }}
             </div>
             <span class="px-3 py-1 rounded-full text-sm font-bold 
+                {% if course_data.has_assessments|default(course_data.marks_count|default(0) + course_data.quiz_count|default(0) > 0) %}
                 {% if course_data.average >= 90 %}grade-a
                 {% elif course_data.average >= 80 %}grade-b
                 {% elif course_data.average >= 70 %}grade-c
                 {% elif course_data.average >= 60 %}grade-d
-                {% else %}grade-f{% endif %}">
+                {% else %}grade-f{% endif %}
+                {% else %}bg-white/10 text-slate-400{% endif %}">
+                {% if course_data.has_assessments|default(course_data.marks_count|default(0) + course_data.quiz_count|default(0) > 0) %}
                 {{ course_data.average|pct(1) }}%
+                {% else %}
+                No data
+                {% endif %}
             </span>
         </div>
         

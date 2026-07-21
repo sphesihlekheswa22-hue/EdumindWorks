@@ -8,14 +8,21 @@ sys.path.insert(0, ".")
 from app import create_app
 from app.services.academic_service import rebalance_at_risk_quiz_scores
 from app.services.risk_service import count_at_risk_students, recalculate_all_risk_scores
+from backfill_enrolled_assessments import backfill_enrolled_assessments
 
 
 def main() -> int:
     app = create_app()
     with app.app_context():
+        backfill_stats = backfill_enrolled_assessments()
         quiz_stats = rebalance_at_risk_quiz_scores()
         risk_rows = recalculate_all_risk_scores()
         at_risk = count_at_risk_students()
+        print(
+            f"Backfilled {backfill_stats['marks_added']} marks and "
+            f"{backfill_stats['quiz_results_added']} quiz results "
+            f"for {backfill_stats['students_updated']} students."
+        )
         print(f"Rebalanced {quiz_stats['quiz_results_updated']} quiz results for {quiz_stats['students_adjusted']} students.")
         print(f"Updated {risk_rows} risk score records.")
         print(f"Students currently at risk: {at_risk}")

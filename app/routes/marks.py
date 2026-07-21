@@ -475,6 +475,10 @@ def my_marks() -> str:
             'average': row["display_average"] if row["display_average"] is not None else 0,
             'marks_count': row.get("marks_count", len(course_marks)),
             'quiz_count': row.get("quiz_count", 0),
+            'has_assessments': row.get(
+                "has_assessments",
+                bool(course_marks) or row.get("quiz_count", 0) > 0,
+            ),
             'highest': row.get("highest"),
             'lowest': row.get("lowest"),
         })

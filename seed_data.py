@@ -24,6 +24,69 @@ from app.models import (
     StaffProfile,
 )
 
+STRUGGLING_STUDENT_EMAILS = {
+    "nhlamulo.nxumalo@student.edumind.com",
+    "ntiyiso.bila@student.edumind.com",
+    "simone.mlomo@student.edumind.com",
+    "junior.phatudi@student.edumind.com",
+    "sduduzo.ngcobo@student.edumind.com",
+    "sifiso.rafaba@student.edumind.com",
+    "bundas.mojakie@student.edumind.com",
+    "thabo.mokoena@student.edumind.com",
+    "lerato.dlamini@student.edumind.com",
+    "zanele.khumalo@student.edumind.com",
+    "ava.lewis@student.edumind.com",
+    "olivia.taylor@student.edumind.com",
+}
+
+
+def assign_student_performance_tiers(students, extra_struggling_emails=None) -> dict:
+    """Map student id -> performance tier used across marks, quizzes, and attendance."""
+    struggling_emails = set(STRUGGLING_STUDENT_EMAILS)
+    if extra_struggling_emails:
+        struggling_emails.update(extra_struggling_emails)
+
+    tiers: dict[int, str] = {}
+    for student in students:
+        email = (student.user.email or "").lower() if student.user else ""
+        if email in struggling_emails:
+            tiers[student.id] = "struggling"
+        else:
+            tiers[student.id] = random.choice(
+                (["struggling"] * 4) + (["average"] * 4) + (["strong"] * 2)
+            )
+    return tiers
+
+
+def _enrollments_by_course(enrollments) -> dict[int, set[int]]:
+    mapping: dict[int, set[int]] = {}
+    for enrollment in enrollments:
+        mapping.setdefault(enrollment.course_id, set()).add(enrollment.student_id)
+    return mapping
+
+
+def _score_for_tier(tier: str, total: int, passing_score: int):
+    from app.utils.percentages import percentage_from_parts
+
+    if tier == "struggling":
+        target_pct = random.uniform(32, min(52, max(33, passing_score - 1)))
+    elif tier == "average":
+        target_pct = random.uniform(58, 76)
+    else:
+        target_pct = random.uniform(82, 98)
+    score = round(total * target_pct / 100, 1)
+    percentage = percentage_from_parts(score, total)
+    return score, percentage, percentage >= passing_score
+
+
+def _attendance_status_for_tier(tier: str) -> str:
+    if tier == "struggling":
+        return random.choices(["present", "absent", "late"], weights=[1, 6, 2])[0]
+    if tier == "average":
+        return random.choices(["present", "absent", "late"], weights=[6, 2, 1])[0]
+    return random.choices(["present", "absent", "late"], weights=[8, 1, 1])[0]
+
+
 def _static_dir_candidates() -> list[str]:
     """Return possible absolute paths to the Flask static directory."""
     root = os.path.dirname(os.path.abspath(__file__))
@@ -183,6 +246,17 @@ def seed_users():
         {'email': 'mason.walker@student.edumind.com', 'first_name': 'Mason', 'last_name': 'Walker', 'role': 'student', 'password': 'student123'},
         {'email': 'isabella.hall@student.edumind.com', 'first_name': 'Isabella', 'last_name': 'Hall', 'role': 'student', 'password': 'student123'},
         {'email': 'james.allen@student.edumind.com', 'first_name': 'James', 'last_name': 'Allen', 'role': 'student', 'password': 'student123'},
+        # Additional struggling / at-risk students
+        {'email': 'nhlamulo.nxumalo@student.edumind.com', 'first_name': 'Nhlamulo', 'last_name': 'Nxumalo', 'role': 'student', 'password': 'student123'},
+        {'email': 'ntiyiso.bila@student.edumind.com', 'first_name': 'Ntiyiso', 'last_name': 'Bila', 'role': 'student', 'password': 'student123'},
+        {'email': 'simone.mlomo@student.edumind.com', 'first_name': 'Simone', 'last_name': 'Mlomo', 'role': 'student', 'password': 'student123'},
+        {'email': 'junior.phatudi@student.edumind.com', 'first_name': 'Junior', 'last_name': 'Phatudi', 'role': 'student', 'password': 'student123'},
+        {'email': 'sduduzo.ngcobo@student.edumind.com', 'first_name': 'Sduduzo', 'last_name': 'Ngcobo', 'role': 'student', 'password': 'student123'},
+        {'email': 'sifiso.rafaba@student.edumind.com', 'first_name': 'Sifiso', 'last_name': 'Rafaba', 'role': 'student', 'password': 'student123'},
+        {'email': 'bundas.mojakie@student.edumind.com', 'first_name': 'Bundas', 'last_name': 'Mojakie', 'role': 'student', 'password': 'student123'},
+        {'email': 'thabo.mokoena@student.edumind.com', 'first_name': 'Thabo', 'last_name': 'Mokoena', 'role': 'student', 'password': 'student123'},
+        {'email': 'lerato.dlamini@student.edumind.com', 'first_name': 'Lerato', 'last_name': 'Dlamini', 'role': 'student', 'password': 'student123'},
+        {'email': 'zanele.khumalo@student.edumind.com', 'first_name': 'Zanele', 'last_name': 'Khumalo', 'role': 'student', 'password': 'student123'},
     ]
     
     users = []
@@ -777,35 +851,38 @@ def seed_quiz_questions(quizzes):
     print(f"  Created {len(questions)} quiz questions")
     return questions
 
-def seed_quiz_results(quizzes, students):
-    """Create quiz results aligned with student performance tiers."""
+def seed_quiz_results(quizzes, students, student_tiers, enrollments):
+    """Create quiz results aligned with student performance tiers (enrolled courses only)."""
     print("Seeding Quiz Results...")
-    from app.utils.percentages import percentage_from_parts
 
     results = []
-    tier_choices = (["struggling"] * 3) + (["average"] * 5) + (["strong"] * 2)
-    student_tiers = {student.id: random.choice(tier_choices) for student in students}
-
-    def score_for_tier(tier: str, total: int, passing_score: int) -> tuple[float, float, bool]:
-        if tier == "struggling":
-            target_pct = random.uniform(32, min(52, max(33, passing_score - 1)))
-        elif tier == "average":
-            target_pct = random.uniform(58, 76)
-        else:
-            target_pct = random.uniform(82, 98)
-        score = round(total * target_pct / 100, 1)
-        percentage = percentage_from_parts(score, total)
-        return score, percentage, percentage >= passing_score
+    enrolled = _enrollments_by_course(enrollments)
+    seen: set[tuple[int, int]] = set()
 
     for quiz in quizzes:
-        num_results = random.randint(3, min(6, len(students)))
-        attempted_students = random.sample(students, num_results)
+        if not quiz.module:
+            continue
+        course_id = quiz.module.course_id
+        eligible_ids = enrolled.get(course_id, set())
+        if not eligible_ids:
+            continue
 
-        for student in attempted_students:
+        for student in students:
+            if student.id not in eligible_ids:
+                continue
+
+            tier = student_tiers.get(student.id, "average")
+            if tier != "struggling" and random.random() > 0.65:
+                continue
+
+            key = (quiz.id, student.id)
+            if key in seen:
+                continue
+            seen.add(key)
+
             total = quiz.total_points or sum(q.points for q in quiz.questions) or 100
             total = max(1, int(total))
-            tier = student_tiers.get(student.id, "average")
-            score, percentage, passed = score_for_tier(tier, total, quiz.passing_score or 60)
+            score, percentage, passed = _score_for_tier(tier, total, quiz.passing_score or 60)
 
             result = QuizResult(
                 quiz_id=quiz.id,
@@ -816,7 +893,7 @@ def seed_quiz_results(quizzes, students):
                 passed=passed,
                 time_taken=random.randint(300, 3600),
                 started_at=datetime.now() - timedelta(days=random.randint(1, 30)),
-                completed_at=datetime.now() - timedelta(days=random.randint(0, 29))
+                completed_at=datetime.now() - timedelta(days=random.randint(0, 29)),
             )
             db.session.add(result)
             results.append(result)
@@ -825,36 +902,35 @@ def seed_quiz_results(quizzes, students):
     print(f"  Created {len(results)} quiz results")
     return results
 
-def seed_attendance(courses, modules, students, users):
-    """Create attendance records."""
+def seed_attendance(courses, modules, students, users, student_tiers, enrollments):
+    """Create attendance records weighted by student performance tier."""
     print("Seeding Attendance...")
     
     attendance_records = []
-    statuses = ['present', 'present', 'present', 'absent', 'late']
+    enrolled = _enrollments_by_course(enrollments)
     
-    # Create attendance for past 10 days
-    for days_ago in range(10):
+    for days_ago in range(14):
         date = datetime.now().date() - timedelta(days=days_ago)
         
-        for course in courses[:5]:  # First 5 courses
-            # Get modules for this course
+        for course in courses:
             course_modules = [m for m in modules if m.course_id == course.id]
             if not course_modules:
                 continue
+
+            course_student_ids = enrolled.get(course.id, set())
+            course_students = [s for s in students if s.id in course_student_ids]
+            if not course_students:
+                continue
                 
-            # Random 5-8 students per course per day
-            num_students = random.randint(5, min(8, len(students)))
-            attending_students = random.sample(students, num_students)
-            
-            for student in attending_students:
-                # Pick a random module from this course
+            for student in course_students:
                 target_module = random.choice(course_modules)
+                tier = student_tiers.get(student.id, "average")
                 
                 attendance = Attendance(
                     module_id=target_module.id,
                     student_id=student.id,
                     date=date,
-                    status=random.choice(statuses),
+                    status=_attendance_status_for_tier(tier),
                     recorded_by=users[0].id,
                     notes=None
                 )
@@ -865,47 +941,56 @@ def seed_attendance(courses, modules, students, users):
     print(f"  Created {len(attendance_records)} attendance records")
     return attendance_records
 
-def seed_marks(courses, modules, students, users):
-    """Create marks/grades."""
+def seed_marks(courses, modules, students, users, student_tiers, enrollments):
+    """Create marks/grades aligned with student tiers (enrolled courses only)."""
     print("Seeding Marks...")
     
     marks = []
     assessment_types = ['assignment', 'midterm', 'final', 'quiz', 'project']
+    enrolled = _enrollments_by_course(enrollments)
     
     for course in courses:
-        # Get modules for this course
         course_modules = [m for m in modules if m.course_id == course.id]
         if not course_modules:
             continue
+
+        course_student_ids = enrolled.get(course.id, set())
+        course_students = [s for s in students if s.id in course_student_ids]
+        if not course_students:
+            continue
+
+        for student in course_students:
+            tier = student_tiers.get(student.id, "average")
+            num_marks = 4 if tier == "struggling" else random.randint(2, 4)
+
+            for i in range(num_marks):
+                assessment_type = random.choice(assessment_types)
+                total = random.choice([100, 50, 20, 10])
+                if tier == "struggling":
+                    target_pct = random.uniform(32, 52)
+                    mark_score = round(total * target_pct / 100, 1)
+                elif tier == "average":
+                    mark_score = random.randint(int(total * 0.58), int(total * 0.76))
+                else:
+                    mark_score = random.randint(int(total * 0.82), total)
+                percentage = min(100.0, (mark_score / total) * 100)
+                target_module = random.choice(course_modules)
             
-        # 5-8 marks per course
-        num_marks = random.randint(5, 8)
-        
-        for i in range(num_marks):
-            student = random.choice(students)
-            assessment_type = random.choice(assessment_types)
-            total = random.choice([100, 50, 20, 10])
-            mark_score = random.randint(int(total * 0.4), total)
-            percentage = (mark_score / total) * 100
-            
-            # Pick a random module from this course
-            target_module = random.choice(course_modules)
-            
-            mark = Mark(
-                module_id=target_module.id,
-                student_id=student.id,
-                assessment_type=assessment_type,
-                assessment_name=f'{assessment_type.title()} {i+1}',
-                mark=mark_score,
-                total_marks=total,
-                percentage=percentage,
-                grade=calculate_grade(percentage),
-                recorded_by=users[0].id,
-                feedback='Good work!' if percentage >= 60 else 'Needs improvement.',
-                marked_at=datetime.now() - timedelta(days=random.randint(1, 60))
-            )
-            db.session.add(mark)
-            marks.append(mark)
+                mark = Mark(
+                    module_id=target_module.id,
+                    student_id=student.id,
+                    assessment_type=assessment_type,
+                    assessment_name=f'{assessment_type.title()} {i+1}',
+                    mark=mark_score,
+                    total_marks=total,
+                    percentage=percentage,
+                    grade=calculate_grade(percentage),
+                    recorded_by=users[0].id,
+                    feedback='Good work!' if percentage >= 60 else 'Needs improvement.',
+                    marked_at=datetime.now() - timedelta(days=random.randint(1, 60))
+                )
+                db.session.add(mark)
+                marks.append(mark)
     
     db.session.commit()
     print(f"  Created {len(marks)} marks")
@@ -1118,6 +1203,7 @@ def main():
         # Seed all tables
         users = seed_users()
         students = seed_students(users)
+        student_tiers = assign_student_performance_tiers(students)
         lecturers = seed_lecturers(users)
         courses = seed_courses(lecturers)
         modules = seed_modules(courses)
@@ -1129,9 +1215,9 @@ def main():
         assignment_submissions = seed_assignment_submissions(assignments, students)
         module_progress = seed_student_module_progress(enrollments, modules)
         quiz_questions = seed_quiz_questions(quizzes)
-        quiz_results = seed_quiz_results(quizzes, students)  # Disabled
-        attendance_records = seed_attendance(courses, modules, students, users)  # Disabled
-        marks = seed_marks(courses, modules, students, users)  # Disabled
+        quiz_results = seed_quiz_results(quizzes, students, student_tiers, enrollments)
+        attendance_records = seed_attendance(courses, modules, students, users, student_tiers, enrollments)
+        marks = seed_marks(courses, modules, students, users, student_tiers, enrollments)
         study_plans = seed_study_plans(students, courses)
         study_plan_items = seed_study_plan_items(study_plans)
         chat_sessions = seed_chat_sessions(students, courses)
@@ -1167,9 +1253,8 @@ def main():
         print(f"  Assignment Submissions: {len(assignment_submissions)}")
         print(f"  Student Module Progress: {len(module_progress)}")
         print(f"  Quiz Questions: {len(quiz_questions)}")
-        print(f"  Quiz Results: {len(quiz_results)} (disabled - requires enrollments)")
-        print(f"  Attendance Records: {len(attendance_records)} (disabled - requires enrollments)")
-        print(f"  Marks: {len(marks)} (disabled - requires enrollments)")
+        struggling_count = sum(1 for tier in student_tiers.values() if tier == "struggling")
+        print(f"  Performance tiers: {struggling_count} struggling / {len(student_tiers)} students")
         print(f"  Study Plans: {len(study_plans)}")
         print(f"  Study Plan Items: {len(study_plan_items)}")
         print(f"  Chat Sessions: {len(chat_sessions)}")

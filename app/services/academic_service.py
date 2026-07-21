@@ -117,12 +117,8 @@ def build_student_academic_summary(student: Student) -> dict:
             else []
         )
 
-        if risk.get("is_at_risk") and risk.get("overall_score") is not None:
-            display_average = risk["overall_score"]
-        elif academic["overall_score"] is not None:
+        if academic["overall_score"] is not None:
             display_average = academic["overall_score"]
-        elif risk.get("has_data"):
-            display_average = risk.get("overall_score")
         else:
             display_average = None
 
@@ -140,6 +136,7 @@ def build_student_academic_summary(student: Student) -> dict:
                 "quiz_avg": academic["quiz_score"],
                 "marks_count": len(course_marks),
                 "quiz_count": len(quiz_results),
+                "has_assessments": bool(course_marks or quiz_results),
                 "highest": round(max(score_samples), 1) if score_samples else None,
                 "lowest": round(min(score_samples), 1) if score_samples else None,
                 "is_at_risk": bool(risk.get("is_at_risk")),
@@ -167,9 +164,6 @@ def build_student_academic_summary(student: Student) -> dict:
     overall_percentage = (
         round(sum(course_scores) / len(course_scores), 1) if course_scores else 0.0
     )
-
-    if is_at_risk and overall_percentage >= AT_RISK_THRESHOLD:
-        overall_percentage = round(min(overall_percentage, AT_RISK_THRESHOLD - 0.1), 1)
 
     total_marks = sum(row["marks_count"] for row in course_summaries)
     total_quizzes = sum(row["quiz_count"] for row in course_summaries)
