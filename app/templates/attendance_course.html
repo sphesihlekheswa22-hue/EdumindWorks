@@ -29,6 +29,18 @@
             <div>
                 <h2 class="text-2xl font-bold text-white font-display">{{ module.name }}</h2>
                 <p class="text-slate-400">{{ course.name }} • {{ students|length }} students • {{ dates|length }} sessions</p>
+                {% if course_modules|length > 1 %}
+                <div class="mt-3">
+                    <label for="moduleSwitcher" class="sr-only">Switch module</label>
+                    <select id="moduleSwitcher" title="Switch module" aria-label="Switch module"
+                        onchange="if (this.value) window.location.href = this.value"
+                        class="px-3 py-1.5 rounded-lg bg-slate-900/50 border border-white/10 text-sm text-slate-300 focus:outline-none focus:border-blue-500/50">
+                        {% for m in course_modules %}
+                        <option value="{{ url_for('attendance.module_attendance', module_id=m.id) }}" {% if m.id == module.id %}selected{% endif %}>{{ m.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
             </div>
         </div>
         

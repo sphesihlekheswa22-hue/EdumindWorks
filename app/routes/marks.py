@@ -231,6 +231,7 @@ def module_marks(module_id: int) -> str:
         'marks_course.html',
         course=course,
         module=module,
+        course_modules=Module.query.filter_by(course_id=course.id).order_by(Module.order).all(),
         student_marks=student_marks,
         marks=all_marks,
         assessment_types=[t[0] for t in assessment_types if t[0]],

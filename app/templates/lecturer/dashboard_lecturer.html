@@ -113,11 +113,6 @@
           <h3 class="text-xl font-display font-bold text-white mb-1">My Teaching Courses</h3>
           <p class="text-slate-400 text-sm">{{ courses|length }} courses active this semester</p>
         </div>
-        <a href="{{ url_for('courses.create') }}" 
-           class="soft-button px-4 py-2 rounded-xl text-white text-sm font-medium flex items-center gap-2">
-          <i class="bi bi-plus-lg"></i>
-          Create Course
-        </a>
       </div>
       
       <div class="overflow-x-auto">
@@ -198,12 +193,7 @@
               <i class="bi bi-inbox text-4xl text-slate-600"></i>
             </div>
             <h4 class="text-lg font-semibold text-white mb-2">No courses assigned yet</h4>
-            <p class="text-slate-400 text-sm mb-6 max-w-md mx-auto">Get started by creating your first course or contact an administrator to assign courses to you.</p>
-            <a href="{{ url_for('courses.create') }}" 
-               class="soft-button px-6 py-3 rounded-xl text-white font-medium inline-flex items-center gap-2">
-              <i class="bi bi-plus-lg"></i>
-              Create Your First Course
-            </a>
+            <p class="text-slate-400 text-sm mb-6 max-w-md mx-auto">Contact an administrator to have courses assigned to you.</p>
           </div>
         {% endif %}
       </div>
@@ -268,12 +258,6 @@
     <section class="glass-card rounded-3xl p-6">
       <h3 class="text-lg font-display font-bold text-white mb-4">Quick Actions</h3>
       <div class="space-y-3">
-        <a href="{{ url_for('courses.create') }}" 
-           class="w-full soft-button py-3 px-4 rounded-xl text-white font-medium flex items-center justify-center gap-2">
-          <i class="bi bi-plus-circle-fill"></i>
-          Create New Course
-        </a>
-        
         {% if courses %}
           <a href="{{ url_for('materials.upload_material_course_legacy', course_id=courses[0].id) }}" 
              class="w-full py-3 px-4 rounded-xl border border-blue-500/30 text-blue-400 font-medium flex items-center justify-center gap-2 hover:bg-blue-500/10 transition-colors">

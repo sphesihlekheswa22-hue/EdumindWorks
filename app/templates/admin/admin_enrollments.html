@@ -12,7 +12,7 @@
             <i class="bi bi-people-fill text-blue-400 text-xl"></i>
         </div>
         <div>
-            <p class="text-2xl font-bold text-white">{{ enrollments|length|default(0) }}</p>
+            <p class="text-2xl font-bold text-white">{{ stats.total|default(0) }}</p>
             <p class="text-xs text-slate-400 uppercase tracking-wider">Total Enrollments</p>
         </div>
     </div>
@@ -22,7 +22,7 @@
             <i class="bi bi-check-circle-fill text-emerald-400 text-xl"></i>
         </div>
         <div>
-            <p class="text-2xl font-bold text-white">{{ enrollments|selectattr("status", "equalto", "active")|list|length|default(0) }}</p>
+            <p class="text-2xl font-bold text-white">{{ stats.active|default(0) }}</p>
             <p class="text-xs text-slate-400 uppercase tracking-wider">Active</p>
         </div>
     </div>
@@ -32,7 +32,7 @@
             <i class="bi bi-clock-history text-amber-400 text-xl"></i>
         </div>
         <div>
-            <p class="text-2xl font-bold text-white">{{ enrollments|selectattr("status", "equalto", "pending")|list|length|default(0) }}</p>
+            <p class="text-2xl font-bold text-white">{{ stats.pending|default(0) }}</p>
             <p class="text-xs text-slate-400 uppercase tracking-wider">Pending</p>
         </div>
     </div>
@@ -65,11 +65,11 @@
         </select>
         
         <select id="statusFilter" title="Filter by status" aria-label="Filter by status" class="px-4 py-2.5 bg-slate-900/50 border border-white/10 rounded-xl text-sm text-slate-300 focus:outline-none focus:border-blue-500/50 min-w-[120px]">
-            <option value="">All Status</option>
-            <option value="active">Active</option>
-            <option value="pending">Pending</option>
-            <option value="completed">Completed</option>
-            <option value="dropped">Dropped</option>
+            <option value="" {% if status == 'all' %}selected{% endif %}>All Status</option>
+            <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+            <option value="pending" {% if status == 'pending' %}selected{% endif %}>Pending</option>
+            <option value="completed" {% if status == 'completed' %}selected{% endif %}>Completed</option>
+            <option value="dropped" {% if status == 'dropped' %}selected{% endif %}>Dropped</option>
         </select>
     </div>
     
@@ -127,19 +127,20 @@
                             </div>
                         </td>
                         <td class="px-6 py-4 text-center">
-                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border
-                                {% if enrollment.status == 'active' %}bg-emerald-500/10 text-emerald-400 border-emerald-500/20
-                                {% elif enrollment.status == 'pending' %}bg-amber-500/10 text-amber-400 border-amber-500/20
-                                {% elif enrollment.status == 'completed' %}bg-blue-500/10 text-blue-400 border-blue-500/20
-                                {% else %}bg-red-500/10 text-red-400 border-red-500/20{% endif %}">
-                                <span class="w-1.5 h-1.5 rounded-full 
-                                    {% if enrollment.status == 'active' %}bg-emerald-400 animate-pulse
-                                    {% elif enrollment.status == 'pending' %}bg-amber-400
-                                    {% elif enrollment.status == 'completed' %}bg-blue-400
-                                    {% else %}bg-red-400{% endif %}">
-                                </span>
-                                {{ enrollment.status|title }}
-                            </span>
+                            <form method="POST" action="{{ url_for('admin.update_enrollment_status', enrollment_id=enrollment.id) }}" class="inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <select name="status" onchange="this.form.submit()" title="Change enrollment status" aria-label="Change enrollment status for {{ enrollment.student.user.full_name }}"
+                                    class="px-3 py-1.5 rounded-lg text-xs font-medium border bg-slate-900/50 focus:outline-none focus:border-blue-500/50
+                                    {% if enrollment.status == 'active' %}text-emerald-400 border-emerald-500/20
+                                    {% elif enrollment.status == 'pending' %}text-amber-400 border-amber-500/20
+                                    {% elif enrollment.status == 'completed' %}text-blue-400 border-blue-500/20
+                                    {% else %}text-red-400 border-red-500/20{% endif %}">
+                                    <option value="active" {% if enrollment.status == 'active' %}selected{% endif %}>Active</option>
+                                    <option value="pending" {% if enrollment.status == 'pending' %}selected{% endif %}>Pending</option>
+                                    <option value="completed" {% if enrollment.status == 'completed' %}selected{% endif %}>Completed</option>
+                                    <option value="dropped" {% if enrollment.status == 'dropped' %}selected{% endif %}>Dropped</option>
+                                </select>
+                            </form>
                         </td>
                         <td class="px-6 py-4">
                             <span class="text-sm text-slate-300">{{ enrollment.enrolled_at|default(enrollment.created_at)|datetimeformat('%b %d, %Y') }}</span>

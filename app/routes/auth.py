@@ -13,6 +13,7 @@ from http import HTTPStatus
 from app import db
 from app.utils.app_time import app_now
 from app.models import User, Student, Lecturer, Course, Enrollment, StaffProfile
+from app.services.academic_service import build_student_academic_summary
 from app.utils.login_helpers import resolve_user_from_login_id
 from app.forms.auth_forms import (
     LoginForm,
@@ -275,8 +276,30 @@ def profile() -> Union[str, redirect]:
         db.session.rollback()
         current_app.logger.error(f'Profile update error: {str(e)}')
         flash('Error updating profile. Please try again.', 'danger')
-    
-    return render_template('profile.html', form=form, profile=profile_obj)
+
+    profile_context = {
+        'enrolled_courses': 0,
+        'gpa': 'N/A',
+        'teaching_courses': 0,
+        'total_students': 0,
+    }
+    if current_user.role == 'student' and profile_obj:
+        profile_context['enrolled_courses'] = Enrollment.query.filter_by(
+            student_id=profile_obj.id, status='active'
+        ).count()
+        academic = build_student_academic_summary(profile_obj)
+        profile_context['gpa'] = academic.get('gpa_4', 'N/A')
+    elif current_user.role == 'lecturer' and profile_obj:
+        courses = profile_obj.get_teaching_courses()
+        profile_context['teaching_courses'] = len(courses)
+        profile_context['total_students'] = sum(c.get_student_count() for c in courses)
+
+    return render_template(
+        'profile.html',
+        form=form,
+        profile=profile_obj,
+        **profile_context,
+    )
 
 
 @auth_bp.route('/forgot-password', methods=['GET', 'POST'])

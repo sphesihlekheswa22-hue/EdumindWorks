@@ -184,6 +184,7 @@ def module_attendance(module_id: int) -> str:
         'attendance_course.html',
         course=course,
         module=module,
+        course_modules=Module.query.filter_by(course_id=course.id).order_by(Module.order).all(),
         students=students,
         dates=recent_dates,
         matrix=matrix,

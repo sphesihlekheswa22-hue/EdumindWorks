@@ -33,6 +33,20 @@
                 <span class="text-slate-600">•</span>
                 <span class="font-mono text-xs bg-slate-700 px-2 py-0.5 rounded">{{ course.code }}</span>
             </p>
+            {% if course_modules|length > 1 %}
+            <div class="mt-2">
+                <label for="moduleSwitcher" class="sr-only">Switch module</label>
+                <select id="moduleSwitcher" title="Switch module" aria-label="Switch module"
+                    onchange="if (this.value) window.location.href = this.value"
+                    class="px-3 py-1.5 rounded-lg bg-slate-900/50 border border-white/10 text-sm text-slate-300 focus:outline-none focus:border-blue-500/50">
+                    {% for m in course_modules %}
+                    <option value="{{ url_for('marks.module_marks', module_id=m.id) }}" {% if m.id == module.id %}selected{% endif %}>{{ m.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% else %}
+            <p class="text-sm text-slate-500 mt-1">{{ module.name }}</p>
+            {% endif %}
         </div>
     </div>
     

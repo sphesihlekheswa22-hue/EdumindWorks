@@ -491,7 +491,7 @@ def edit_course(course_id: int) -> str:
 @admin_required
 def enrollments() -> str:
     """Display enrollment management with filtering."""
-    status: str = request.args.get('status', 'active')
+    status: str = request.args.get('status', 'all')
     
     query = Enrollment.query
     
@@ -542,7 +542,15 @@ def create_enrollment() -> str:
 
     existing = Enrollment.query.filter_by(student_id=student_id, course_id=course_id).first()
     if existing:
-        flash('This student is already enrolled in that course.', 'warning')
+        try:
+            existing.status = status
+            existing.completed_at = app_now() if status == 'completed' else None
+            db.session.commit()
+            flash('Enrollment status updated successfully!', 'success')
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f'Error updating enrollment status: {str(e)}')
+            flash('Failed to update enrollment status. Please try again.', 'danger')
         return redirect(url_for('admin.enrollments'))
 
     try:
@@ -645,6 +653,8 @@ def update_enrollment_status(enrollment_id: int) -> str:
         
         if new_status == 'completed':
             enrollment.completed_at = app_now()
+        else:
+            enrollment.completed_at = None
         
         db.session.commit()
         flash(f'Enrollment status updated to {new_status}!', 'success')

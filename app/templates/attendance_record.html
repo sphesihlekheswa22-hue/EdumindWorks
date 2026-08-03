@@ -160,7 +160,7 @@
                 
                 <div class="flex items-center gap-2">
                     <label class="cursor-pointer">
-                        <input type="radio" name="student_{{ student.id }}" value="present" class="sr-only peer" 
+                        <input type="radio" name="status_{{ student.id }}" value="present" class="sr-only peer" 
                             {{ 'checked' if existing and existing.status == 'present' else '' }}>
                         <span class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-800/50 border border-white/10 text-slate-400 text-sm font-medium peer-checked:bg-emerald-500/20 peer-checked:border-emerald-500/40 peer-checked:text-emerald-400 hover:bg-white/10 transition-all">
                             <i class="bi bi-check-circle"></i> Present
@@ -168,7 +168,7 @@
                     </label>
                     
                     <label class="cursor-pointer">
-                        <input type="radio" name="student_{{ student.id }}" value="absent" class="sr-only peer"
+                        <input type="radio" name="status_{{ student.id }}" value="absent" class="sr-only peer"
                             {{ 'checked' if existing and existing.status == 'absent' else '' }}>
                         <span class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-800/50 border border-white/10 text-slate-400 text-sm font-medium peer-checked:bg-red-500/20 peer-checked:border-red-500/40 peer-checked:text-red-400 hover:bg-white/10 transition-all">
                             <i class="bi bi-x-circle"></i> Absent
@@ -176,7 +176,7 @@
                     </label>
                     
                     <label class="cursor-pointer">
-                        <input type="radio" name="student_{{ student.id }}" value="excused" class="sr-only peer"
+                        <input type="radio" name="status_{{ student.id }}" value="excused" class="sr-only peer"
                             {{ 'checked' if existing and existing.status == 'excused' else '' }}>
                         <span class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-800/50 border border-white/10 text-slate-400 text-sm font-medium peer-checked:bg-blue-500/20 peer-checked:border-blue-500/40 peer-checked:text-blue-400 hover:bg-white/10 transition-all">
                             <i class="bi bi-shield-check"></i> Excused
@@ -184,7 +184,7 @@
                     </label>
                     
                     <label class="cursor-pointer">
-                        <input type="radio" name="student_{{ student.id }}" value="late" class="sr-only peer"
+                        <input type="radio" name="status_{{ student.id }}" value="late" class="sr-only peer"
                             {{ 'checked' if existing and existing.status == 'late' else '' }}>
                         <span class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-800/50 border border-white/10 text-slate-400 text-sm font-medium peer-checked:bg-amber-500/20 peer-checked:border-amber-500/40 peer-checked:text-amber-400 hover:bg-white/10 transition-all">
                             <i class="bi bi-clock"></i> Late

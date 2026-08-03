@@ -168,7 +168,7 @@
             </div>
         </div>
         
-        {% if user_role in ['lecturer', 'admin'] %}
+        {% if user_role == 'admin' %}
         <a href="{{ url_for('courses.create') }}" class="group relative inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl font-semibold text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 transition-all hover:-translate-y-0.5 overflow-hidden">
             <div class="absolute inset-0 bg-gradient-to-r from-purple-600 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
             <i class="bi bi-plus-circle relative z-10 group-hover:rotate-180 transition-transform duration-500"></i>
@@ -317,7 +317,7 @@
             {% endif %}
         </p>
         
-        {% if user_role in ['lecturer', 'admin'] %}
+        {% if user_role == 'admin' %}
         <a href="{{ url_for('courses.create') }}" class="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl font-semibold text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 transition-all hover:-translate-y-0.5">
             <i class="bi bi-plus-circle"></i>
             Create First Program
