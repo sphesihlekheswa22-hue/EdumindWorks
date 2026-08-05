@@ -14,7 +14,7 @@
                 <p class="text-slate-400">{{ course.name }} • Module {{ module.order or 'N/A' }}</p>
             </div>
             <div class="text-right">
-                <div class="text-3xl font-bold text-white">{{ overall_percentage|round(1) }}%</div>
+                <div class="text-3xl font-bold text-white">{% if overall_percentage is not none %}{{ overall_percentage|round(1) }}%{% else %}--{% endif %}</div>
                 <div class="text-sm text-slate-400">Overall Grade</div>
             </div>
         </div>

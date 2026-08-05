@@ -403,53 +403,50 @@ def student_analytics():
         abort(403)
     
     student = Student.query.filter_by(user_id=current_user.id).first()
+
+    from app.services.academic_service import build_student_academic_summary
+    academic = build_student_academic_summary(student)
     
-    # Academic performance
-    marks = Mark.query.filter_by(student_id=student.id).all()
-    avg_mark = clamp_pct(sum(m.percentage for m in marks) / len(marks) if marks else 0)
-    
-    # Quiz performance
-    quiz_results = QuizResult.query.filter_by(student_id=student.id).all()
-    avg_quiz = clamp_pct(sum(r.percentage for r in quiz_results) / len(quiz_results) if quiz_results else 0)
+    # Academic performance from active enrollments only
+    avg_mark = academic["overall_percentage"]
+    avg_quiz = (
+        round(
+            sum(row["quiz_avg"] for row in academic["course_summaries"] if row.get("quiz_avg") is not None)
+            / max(1, sum(1 for row in academic["course_summaries"] if row.get("quiz_avg") is not None)),
+            1,
+        )
+        if any(row.get("quiz_avg") is not None for row in academic["course_summaries"])
+        else None
+    )
+    from app.services.risk_service import latest_quiz_results
+    quiz_results = []
+    for row in academic["course_summaries"]:
+        course_module_ids = [module.id for module in row["course"].modules]
+        quiz_results.extend(latest_quiz_results(student.id, module_ids=course_module_ids))
     quizzes_passed = sum(1 for r in quiz_results if r.passed)
     
-    # Attendance
+    # Attendance scoped to active courses
+    enrollments = Enrollment.query.filter_by(student_id=student.id, status='active').all()
+    course_ids = [e.course_id for e in enrollments]
     attendance = Attendance.query.filter_by(student_id=student.id).all()
+    if course_ids:
+        active_module_ids = {m.id for m in Module.query.filter(Module.course_id.in_(course_ids)).all()}
+        attendance = [a for a in attendance if a.module_id in active_module_ids]
     attendance_rate = 0
     if attendance:
         present = sum(1 for a in attendance if a.status == 'present')
         attendance_rate = (present / len(attendance)) * 100
     
-    # Course progress
-    enrollments = Enrollment.query.filter_by(student_id=student.id, status='active').all()
+    # Course progress aligned with academic summary
     course_progress = []
-    for e in enrollments:
-        course = e.course
-        
-        # Get module IDs for this course
-        course_module_ids = [m.id for m in course.modules]
-        
-        # Calculate progress
-        course_marks = Mark.query.filter(
-            Mark.student_id == student.id,
-            Mark.module_id.in_(course_module_ids)
-        ).all() if course_module_ids else []
-        
-        course_quizzes = QuizResult.query.join(Quiz).filter(
-            QuizResult.student_id == student.id,
-            Quiz.module_id.in_(course_module_ids)
-        ).all() if course_module_ids else []
-        
-        course_avg = 0
-        if course_marks:
-            course_avg = sum(m.percentage for m in course_marks) / len(course_marks)
-        
+    for row in academic["course_summaries"]:
+        course = row["course"]
         course_progress.append({
             'id': course.id,
             'name': course.name,
-            'avg': round(course_avg, 1),
-            'marks_count': len(course_marks),
-            'quizzes_count': len(course_quizzes)
+            'avg': row["display_average"],
+            'marks_count': row["marks_count"],
+            'quizzes_count': row["quiz_count"],
         })
     
     # Risk assessment from live academic data (worst active enrollment)
@@ -477,8 +474,8 @@ def student_analytics():
         risk.is_at_risk = risk_metrics["is_at_risk"]
     
     return render_template('analytics_student.html',
-                          avg_mark=round(avg_mark, 1),
-                          avg_quiz=round(avg_quiz, 1),
+                          avg_mark=round(avg_mark, 1) if avg_mark else 0,
+                          avg_quiz=round(avg_quiz, 1) if avg_quiz is not None else None,
                           quizzes_passed=quizzes_passed,
                           total_quizzes=len(quiz_results),
                           attendance_rate=round(attendance_rate, 1),

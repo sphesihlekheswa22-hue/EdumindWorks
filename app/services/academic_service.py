@@ -11,20 +11,31 @@ from app.services.risk_service import (
     AT_RISK_THRESHOLD,
     compute_academic_scores,
     compute_student_metrics,
+    latest_quiz_results,
 )
 from app.utils.percentages import clamp_pct
 
 MODULE_PASS_THRESHOLD = AT_RISK_THRESHOLD
 
 
+def active_module_ids_for_student(student_id: int) -> list[int]:
+    """Module IDs from the student's active course enrollments only."""
+    enrollments = Enrollment.query.filter_by(student_id=student_id, status="active").all()
+    module_ids: list[int] = []
+    for enrollment in enrollments:
+        if enrollment.course:
+            module_ids.extend(module.id for module in enrollment.course.modules)
+    return module_ids
+
+
 def compute_module_status(student_id: int, module: Module) -> Optional[dict]:
     """Pass/fail for a single module from marks and quiz attempts."""
     marks = Mark.query.filter_by(student_id=student_id, module_id=module.id).all()
+    quiz_results = latest_quiz_results(student_id, module_ids=[module.id])
     quiz_avg = (
-        db.session.query(func.avg(QuizResult.percentage))
-        .join(Quiz, QuizResult.quiz_id == Quiz.id)
-        .filter(QuizResult.student_id == student_id, Quiz.module_id == module.id)
-        .scalar()
+        sum(result.percentage for result in quiz_results) / len(quiz_results)
+        if quiz_results
+        else None
     )
 
     parts: list[float] = []
@@ -106,16 +117,7 @@ def build_student_academic_summary(student: Student) -> dict:
             Mark.student_id == student.id,
             Mark.module_id.in_(course_module_ids),
         ).all() if course_module_ids else []
-        quiz_results = (
-            QuizResult.query.join(Quiz, QuizResult.quiz_id == Quiz.id)
-            .filter(
-                QuizResult.student_id == student.id,
-                Quiz.module_id.in_(course_module_ids),
-            )
-            .all()
-            if course_module_ids
-            else []
-        )
+        quiz_results = latest_quiz_results(student.id, module_ids=course_module_ids)
 
         if academic["overall_score"] is not None:
             display_average = academic["overall_score"]

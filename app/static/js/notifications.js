@@ -277,7 +277,9 @@ class NotificationSystem {
             }
             courseInput.value = courseId;
         }
-        
+
+        this.loadTemplate('encouragement');
+
         const modal = document.getElementById('interventionModal');
         const content = document.getElementById('interventionModalContent');
         if (modal && content) {
@@ -457,4 +459,5 @@ function intervene(studentId, name, risk, courseId = null) {
 let notificationSystem;
 document.addEventListener('DOMContentLoaded', function() {
     notificationSystem = new NotificationSystem();
+    window.notificationSystem = notificationSystem;
 });

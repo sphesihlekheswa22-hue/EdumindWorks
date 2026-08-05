@@ -248,15 +248,15 @@
                     </div>
                     <div class="text-center">
                         <p class="text-xs text-slate-400">Attendance</p>
-                        <p class="font-bold text-white">{{ student.attendance }}%</p>
+                        <p class="font-bold text-white">{% if student.attendance is not none %}{{ student.attendance }}%{% else %}--{% endif %}</p>
                     </div>
                     <div class="text-center">
-                        <p class="text-xs text-slate-400">Avg Marks</p>
-                        <p class="font-bold text-white">{{ student.avg_score }}%</p>
+                        <p class="text-xs text-slate-400">Overall</p>
+                        <p class="font-bold text-white">{% if student.avg_score is not none %}{{ student.avg_score }}%{% else %}--{% endif %}</p>
                     </div>
                     <div class="text-center">
                         <p class="text-xs text-slate-400">Quizzes</p>
-                        <p class="font-bold text-white">{{ student.quiz_score }}%</p>
+                        <p class="font-bold text-white">{% if student.quiz_score is not none %}{{ student.quiz_score }}%{% else %}--{% endif %}</p>
                     </div>
                 </div>
                 <div class="ml-2">

@@ -11,7 +11,7 @@ from http import HTTPStatus
 
 from app import db
 from sqlalchemy.orm import joinedload
-from app.models import User, Student, Lecturer, Course, Enrollment, StaffProfile
+from app.models import User, Student, Lecturer, Course, Enrollment, StaffProfile, Mark
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -291,6 +291,11 @@ def edit_user(user_id: int) -> str:
 @admin_required
 def delete_user(user_id: int) -> str:
     """Delete user with cascade handling."""
+    from app.models.notification import Notification, InterventionMessage
+    from app.models.attendance import Attendance
+    from app.models.material import Material
+    from app.models.quiz import Quiz
+
     user: User = User.query.get_or_404(user_id)
     
     if user.id == current_user.id:
@@ -298,6 +303,26 @@ def delete_user(user_id: int) -> str:
         return redirect(url_for('admin.users'))
     
     try:
+        Notification.query.filter(
+            (Notification.recipient_id == user.id) | (Notification.sender_id == user.id)
+        ).delete(synchronize_session=False)
+
+        if user.lecturer:
+            InterventionMessage.query.filter_by(lecturer_id=user.lecturer.id).delete(synchronize_session=False)
+
+        Mark.query.filter_by(recorded_by=user.id).update(
+            {Mark.recorded_by: current_user.id}, synchronize_session=False
+        )
+        Attendance.query.filter_by(recorded_by=user.id).update(
+            {Attendance.recorded_by: current_user.id}, synchronize_session=False
+        )
+        Material.query.filter_by(uploaded_by=user.id).update(
+            {Material.uploaded_by: current_user.id}, synchronize_session=False
+        )
+        Quiz.query.filter_by(created_by=user.id).update(
+            {Quiz.created_by: current_user.id}, synchronize_session=False
+        )
+
         db.session.delete(user)
         db.session.commit()
         flash('User deleted successfully!', 'success')
@@ -365,10 +390,16 @@ def toggle_course_active(course_id: int) -> str:
 @login_required
 @admin_required
 def delete_course(course_id: int) -> str:
-    """Delete course with validation."""
+    """Delete course with related cleanup."""
+    from app.models.notification import InterventionMessage
+    from app.models.risk_score import RiskScore
+
     course: Course = Course.query.get_or_404(course_id)
     
     try:
+        Enrollment.query.filter_by(course_id=course_id).delete(synchronize_session=False)
+        InterventionMessage.query.filter_by(course_id=course_id).delete(synchronize_session=False)
+        RiskScore.query.filter_by(course_id=course_id).delete(synchronize_session=False)
         db.session.delete(course)
         db.session.commit()
         flash('Course deleted successfully!', 'success')
@@ -376,7 +407,7 @@ def delete_course(course_id: int) -> str:
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f'Error deleting course {course_id}: {str(e)}')
-        flash('Error deleting course. It may have enrolled students or materials.', 'danger')
+        flash('Error deleting course. It may have associated records.', 'danger')
     
     return redirect(url_for('admin.courses'))
 

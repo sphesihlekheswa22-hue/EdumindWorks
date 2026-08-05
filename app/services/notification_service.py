@@ -34,7 +34,8 @@ class NotificationService:
             risk_level_at_send=risk_level
         )
         db.session.add(intervention)
-        
+        db.session.flush()
+
         # Create notification for student
         notif = student.user.add_notification(
             type=NotificationType.INTERVENTION_RECEIVED.value,

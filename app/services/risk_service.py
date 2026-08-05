@@ -16,6 +16,26 @@ from app.utils.percentages import clamp_pct
 AT_RISK_THRESHOLD = 55.0
 
 
+def latest_quiz_results(student_id: int, module_ids: Optional[list[int]] = None) -> list:
+    """Most recent quiz attempt per quiz, optionally scoped to modules."""
+    query = (
+        QuizResult.query.join(Quiz, QuizResult.quiz_id == Quiz.id)
+        .filter(QuizResult.student_id == student_id)
+        .order_by(QuizResult.quiz_id, QuizResult.completed_at.desc(), QuizResult.id.desc())
+    )
+    if module_ids:
+        query = query.filter(Quiz.module_id.in_(module_ids))
+
+    seen: set[int] = set()
+    latest: list = []
+    for result in query.all():
+        if result.quiz_id in seen:
+            continue
+        seen.add(result.quiz_id)
+        latest.append(result)
+    return latest
+
+
 def performance_level(overall_score: float) -> str:
     """Map overall performance (0-100, higher is better) to risk band."""
     if overall_score >= 75:
@@ -46,15 +66,12 @@ def compute_academic_scores(
         round(clamp_pct(sum(mark.percentage for mark in marks) / len(marks)), 1) if marks else None
     )
 
-    quiz_query = (
-        db.session.query(func.avg(QuizResult.percentage))
-        .join(Quiz, QuizResult.quiz_id == Quiz.id)
-        .filter(QuizResult.student_id == student_id)
+    quiz_results = latest_quiz_results(student_id, module_ids=scoped_modules or None)
+    quiz_score = (
+        round(clamp_pct(sum(r.percentage for r in quiz_results) / len(quiz_results)), 1)
+        if quiz_results
+        else None
     )
-    if scoped_modules:
-        quiz_query = quiz_query.filter(Quiz.module_id.in_(scoped_modules))
-    quiz_average = quiz_query.scalar()
-    quiz_score = round(clamp_pct(quiz_average), 1) if quiz_average is not None else None
 
     score_parts = [score for score in (assignment_score, quiz_score) if score is not None]
     overall_score = round(sum(score_parts) / len(score_parts), 1) if score_parts else None
@@ -96,15 +113,12 @@ def compute_student_metrics(
         clamp_pct(sum(mark.percentage for mark in marks) / len(marks)) if marks else None
     )
 
-    quiz_query = (
-        db.session.query(func.avg(QuizResult.percentage))
-        .join(Quiz, QuizResult.quiz_id == Quiz.id)
-        .filter(QuizResult.student_id == student_id)
+    quiz_results = latest_quiz_results(student_id, module_ids=scoped_modules or None)
+    quiz_score = (
+        round(clamp_pct(sum(r.percentage for r in quiz_results) / len(quiz_results)), 1)
+        if quiz_results
+        else None
     )
-    if scoped_modules:
-        quiz_query = quiz_query.filter(Quiz.module_id.in_(scoped_modules))
-    quiz_average = quiz_query.scalar()
-    quiz_score = clamp_pct(quiz_average) if quiz_average is not None else None
 
     weighted_parts: list[tuple[float, float]] = []
     if attendance_score is not None:
@@ -244,9 +258,9 @@ def list_at_risk_students(
                 "course_code": course.code if course else "",
                 "performance_score": metrics["performance_score"],
                 "risk_level": metrics["risk_level"],
-                "attendance": metrics["attendance_score"] or 0,
-                "avg_score": metrics["assignment_score"] or metrics["overall_score"],
-                "quiz_score": metrics["quiz_score"] or 0,
+                "attendance": metrics["attendance_score"],
+                "avg_score": metrics["overall_score"],
+                "quiz_score": metrics["quiz_score"],
                 "risk_factors": metrics["risk_factors"],
             }
         )

@@ -8,7 +8,8 @@ from datetime import datetime
 from http import HTTPStatus
 
 from app import db
-from app.services.academic_service import build_student_academic_summary
+from app.services.academic_service import build_student_academic_summary, compute_module_status
+from app.services.risk_service import compute_academic_scores
 from app.utils.percentages import clamp_pct
 from app.utils.app_time import app_now
 from app.utils.percentages import percentage_from_parts
@@ -107,44 +108,32 @@ def module_marks(module_id: int) -> str:
     module, course, student, can_edit = check_mark_permission(module_id)
     
     if student:
-        # Student view - own marks only
-        current_app.logger.info(f'Student marks view: student_id={student.id}, module_id={module_id}')
+        # Student view - own marks only (marks + latest quiz attempts)
         marks: List[Mark] = Mark.query.filter_by(
             student_id=student.id,
             module_id=module_id
         ).order_by(Mark.marked_at.desc()).all()
-        
-        current_app.logger.info(f'Found {len(marks)} marks for student')
-        
-        # Calculate statistics
+
+        module_status = compute_module_status(student.id, module)
         overall: Dict = {
-            'average': 0.0,
-            'highest': 0.0,
-            'lowest': 0.0,
-            'count': len(marks)
+            'average': module_status['average'] if module_status else None,
+            'highest': module_status['average'] if module_status else None,
+            'lowest': module_status['average'] if module_status else None,
+            'count': len(marks) + (1 if module_status and module_status.get('quiz_avg') is not None else 0),
+            'marks_avg': module_status['marks_avg'] if module_status else None,
+            'quiz_avg': module_status['quiz_avg'] if module_status else None,
         }
-        
-        if marks:
-            percentages: List[float] = [m.percentage for m in marks]
-            overall['average'] = sum(percentages) / len(percentages)
-            overall['highest'] = max(percentages)
-            overall['lowest'] = min(percentages)
-            current_app.logger.info(f'Calculated stats: avg={overall["average"]}, highest={overall["highest"]}, lowest={overall["lowest"]}')
-        
-        # Grade distribution
+
         grade_counts: Dict[str, int] = {}
         for mark in marks:
             grade: str = mark.grade or 'N/A'
             grade_counts[grade] = grade_counts.get(grade, 0) + 1
-        
-        # Calculate overall percentage and grade for template
-        overall_percentage: float = overall['average']
+
+        overall_percentage: Optional[float] = module_status['average'] if module_status else None
         overall_grade: str = 'N/A'
-        if marks:
-            # Use the calculate_grade method to get letter grade from average percentage
+        if overall_percentage is not None:
             temp_mark = Mark(percentage=overall_percentage, total_marks=100, mark=overall_percentage)
             overall_grade = temp_mark.calculate_grade()
-            current_app.logger.info(f'Overall grade: {overall_grade}')
         
         # Get class rank - count how many students have higher average
         enrollments = Enrollment.query.filter_by(
@@ -157,21 +146,12 @@ def module_marks(module_id: int) -> str:
         total_students: int = len(student_ids)
 
         class_rank: int = 1
-        if marks and overall_percentage > 0:
-            # Get all students in this course with their averages for this module
+        if overall_percentage is not None:
             for sid in student_ids:
-                other_marks = Mark.query.filter_by(
-                    module_id=module_id,
-                    student_id=sid
-                ).all()
+                peer_status = compute_module_status(sid, module)
+                if peer_status and peer_status['average'] > overall_percentage:
+                    class_rank += 1
 
-                if other_marks:
-                    other_avg = sum(m.percentage for m in other_marks) / len(other_marks)
-                    if other_avg > overall_percentage:
-                        class_rank += 1
-        
-        current_app.logger.info(f'Rendering template with: class_rank={class_rank}, total_students={total_students}')
-        
         return render_template(
             'marks_student.html',
             course=course,
@@ -182,7 +162,8 @@ def module_marks(module_id: int) -> str:
             overall_grade=overall_grade,
             grade_counts=grade_counts,
             class_rank=class_rank,
-            total_students=total_students
+            total_students=total_students,
+            has_assessments=module_status is not None,
         )
     
     # Instructor view - all students in the course
@@ -203,12 +184,16 @@ def module_marks(module_id: int) -> str:
     student_marks: Dict[int, Dict] = {}
     
     for e in enrollments:
+        academic = compute_academic_scores(e.student_id, module_ids=[module_id])
         student_marks[e.student_id] = {
             'student': e.student,
             'marks': [],
             'total': 0.0,
             'count': 0,
-            'average': 0.0
+            'average': academic['overall_score'],
+            'marks_avg': academic['assignment_score'],
+            'quiz_avg': academic['quiz_score'],
+            'has_data': academic['has_data'],
         }
     
     for mark in all_marks:
@@ -217,11 +202,24 @@ def module_marks(module_id: int) -> str:
             student_marks[mark.student_id]['total'] += mark.percentage
             student_marks[mark.student_id]['count'] += 1
     
-    # Calculate averages
     for sid, data in student_marks.items():
-        if data['count'] > 0:
+        if data['average'] is None and data['count'] > 0:
             data['average'] = data['total'] / data['count']
-    
+
+    student_averages = [
+        data['average'] for data in student_marks.values()
+        if data.get('average') is not None
+    ]
+    class_stats = {
+        'average': round(sum(student_averages) / len(student_averages), 1) if student_averages else None,
+        'highest': round(max(student_averages), 1) if student_averages else None,
+        'pass_rate': round(
+            sum(1 for avg in student_averages if avg >= 50) / len(student_averages) * 100, 0
+        ) if student_averages else None,
+        'student_count': len(enrollments),
+        'assessed_count': len(student_averages),
+    }
+
     # Assessment types for filtering
     assessment_types: List[str] = db.session.query(
         Mark.assessment_type
@@ -234,6 +232,7 @@ def module_marks(module_id: int) -> str:
         course_modules=Module.query.filter_by(course_id=course.id).order_by(Module.order).all(),
         student_marks=student_marks,
         marks=all_marks,
+        class_stats=class_stats,
         assessment_types=[t[0] for t in assessment_types if t[0]],
         can_edit=can_edit
     )
@@ -441,6 +440,28 @@ def export_marks_csv(module_id: int) -> Response:
     return _csv_response(filename, output.getvalue())
 
 
+@marks_bp.route('/<int:mark_id>/delete', methods=['POST'])
+@login_required
+def delete_mark(mark_id: int) -> redirect:
+    """Delete a mark record (admin or assigned lecturer)."""
+    mark = Mark.query.get_or_404(mark_id)
+    module_id = mark.module_id
+    _, _, _, can_edit = check_mark_permission(module_id, require_edit=True)
+    if current_user.role != 'admin' and not can_edit:
+        abort(HTTPStatus.FORBIDDEN)
+
+    try:
+        db.session.delete(mark)
+        db.session.commit()
+        flash('Mark deleted successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'Error deleting mark {mark_id}: {str(e)}')
+        flash('Failed to delete mark.', 'danger')
+
+    return redirect(url_for('marks.module_marks', module_id=module_id))
+
+
 @marks_bp.route('/student')
 @login_required
 def my_marks() -> str:
@@ -473,7 +494,7 @@ def my_marks() -> str:
         courses_data.append({
             'course': course,
             'marks': course_marks,
-            'average': row["display_average"] if row["display_average"] is not None else 0,
+            'average': row["display_average"],
             'marks_count': row.get("marks_count", len(course_marks)),
             'quiz_count': row.get("quiz_count", 0),
             'has_assessments': row.get(
