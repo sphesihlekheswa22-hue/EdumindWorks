@@ -3,7 +3,8 @@ from flask_login import login_required, current_user
 from datetime import datetime, timedelta
 from app import db
 from app.utils.app_time import app_now, app_today
-from app.services.academic_service import build_student_academic_summary
+from app.services.academic_service import build_student_academic_summary, active_module_ids_for_student
+from app.services.risk_service import latest_quiz_results
 from app.models import (
     User, Student, Lecturer, Course, Enrollment,
     Quiz, QuizResult, Attendance, Mark, StudyPlan, ChatSession, CVReview,
@@ -70,9 +71,18 @@ def student_dashboard():
             'academic_average': course_summary.get('average'),
         })
     
-    # Get recent quiz results
-    recent_quizzes = QuizResult.query.filter_by(student_id=student.id)\
-        .order_by(QuizResult.completed_at.desc()).limit(5).all()
+    # Get recent quiz results (scoped to active/pending enrollments)
+    active_module_ids = active_module_ids_for_student(student.id)
+    scoped_quiz_results = latest_quiz_results(
+        student.id, module_ids=active_module_ids or None
+    )
+    recent_quizzes = sorted(
+        scoped_quiz_results,
+        key=lambda r: r.completed_at or datetime.min,
+        reverse=True,
+    )[:5]
+    quizzes_taken = len(scoped_quiz_results)
+    quizzes_passed = sum(1 for r in scoped_quiz_results if r.passed)
     
     # Get upcoming study plans
     study_plans = StudyPlan.query.filter_by(student_id=student.id, status='active')\
@@ -118,6 +128,8 @@ def student_dashboard():
         'student/dashboard_student.html',
         enrolled_courses=enrolled_courses,
         recent_quizzes=recent_quizzes,
+        quizzes_taken=quizzes_taken,
+        quizzes_passed=quizzes_passed,
         study_plans=study_plans,
         chat_sessions=chat_sessions,
         ai_session_count=ai_session_count,

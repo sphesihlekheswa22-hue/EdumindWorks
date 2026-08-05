@@ -12,6 +12,7 @@ from app.services.risk_service import (
     compute_academic_scores,
     compute_student_metrics,
     latest_quiz_results,
+    latest_quiz_results_for_course,
 )
 from app.utils.percentages import clamp_pct
 
@@ -20,7 +21,10 @@ MODULE_PASS_THRESHOLD = AT_RISK_THRESHOLD
 
 def active_module_ids_for_student(student_id: int) -> list[int]:
     """Module IDs from the student's active course enrollments only."""
-    enrollments = Enrollment.query.filter_by(student_id=student_id, status="active").all()
+    enrollments = Enrollment.query.filter(
+        Enrollment.student_id == student_id,
+        Enrollment.status.in_(["active", "pending"]),
+    ).all()
     module_ids: list[int] = []
     for enrollment in enrollments:
         if enrollment.course:
@@ -64,7 +68,10 @@ def compute_module_status(student_id: int, module: Module) -> Optional[dict]:
 def build_student_academic_summary(student: Student) -> dict:
     """Dashboard / marks summary based on active enrollments only."""
     enrollments = (
-        Enrollment.query.filter_by(student_id=student.id, status="active")
+        Enrollment.query.filter(
+            Enrollment.student_id == student.id,
+            Enrollment.status.in_(["active", "pending"]),
+        )
         .order_by(Enrollment.enrolled_at.desc())
         .all()
     )
@@ -117,10 +124,20 @@ def build_student_academic_summary(student: Student) -> dict:
             Mark.student_id == student.id,
             Mark.module_id.in_(course_module_ids),
         ).all() if course_module_ids else []
-        quiz_results = latest_quiz_results(student.id, module_ids=course_module_ids)
+        quiz_results = latest_quiz_results_for_course(
+            student.id, course.id, module_ids=course_module_ids or None
+        )
 
         if academic["overall_score"] is not None:
             display_average = academic["overall_score"]
+        elif quiz_results:
+            display_average = round(
+                sum(result.percentage for result in quiz_results) / len(quiz_results), 1
+            )
+        elif academic["quiz_score"] is not None:
+            display_average = academic["quiz_score"]
+        elif academic["assignment_score"] is not None:
+            display_average = academic["assignment_score"]
         else:
             display_average = None
 
@@ -169,6 +186,15 @@ def build_student_academic_summary(student: Student) -> dict:
 
     total_marks = sum(row["marks_count"] for row in course_summaries)
     total_quizzes = sum(row["quiz_count"] for row in course_summaries)
+
+    if overall_percentage == 0.0 and total_quizzes > 0:
+        quiz_avgs = [
+            row["quiz_avg"]
+            for row in course_summaries
+            if row.get("quiz_avg") is not None
+        ]
+        if quiz_avgs:
+            overall_percentage = round(sum(quiz_avgs) / len(quiz_avgs), 1)
 
     gpa_4 = round((overall_percentage / 100) * 4.0, 2)
     passing_modules = [row for row in module_statuses if row["passing"]]
@@ -220,6 +246,8 @@ def rebalance_at_risk_quiz_scores() -> dict:
 
         student_updates = 0
         for result in QuizResult.query.filter_by(student_id=student.id).all():
+            if result.passed:
+                continue
             if result.percentage <= AT_RISK_THRESHOLD:
                 continue
 

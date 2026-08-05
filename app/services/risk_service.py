@@ -36,6 +36,31 @@ def latest_quiz_results(student_id: int, module_ids: Optional[list[int]] = None)
     return latest
 
 
+def latest_quiz_results_for_course(
+    student_id: int,
+    course_id: int,
+    module_ids: Optional[list[int]] = None,
+) -> list:
+    """Latest quiz attempt per quiz for a course (joins modules so scores always match enrollment)."""
+    query = (
+        QuizResult.query.join(Quiz, QuizResult.quiz_id == Quiz.id)
+        .join(Module, Quiz.module_id == Module.id)
+        .filter(QuizResult.student_id == student_id, Module.course_id == course_id)
+        .order_by(QuizResult.quiz_id, QuizResult.completed_at.desc(), QuizResult.id.desc())
+    )
+    if module_ids:
+        query = query.filter(Module.id.in_(module_ids))
+
+    seen: set[int] = set()
+    latest: list = []
+    for result in query.all():
+        if result.quiz_id in seen:
+            continue
+        seen.add(result.quiz_id)
+        latest.append(result)
+    return latest
+
+
 def performance_level(overall_score: float) -> str:
     """Map overall performance (0-100, higher is better) to risk band."""
     if overall_score >= 75:
@@ -66,7 +91,11 @@ def compute_academic_scores(
         round(clamp_pct(sum(mark.percentage for mark in marks) / len(marks)), 1) if marks else None
     )
 
-    quiz_results = latest_quiz_results(student_id, module_ids=scoped_modules or None)
+    quiz_results = (
+        latest_quiz_results_for_course(student_id, course_id, module_ids=scoped_modules or None)
+        if course_id
+        else latest_quiz_results(student_id, module_ids=scoped_modules or None)
+    )
     quiz_score = (
         round(clamp_pct(sum(r.percentage for r in quiz_results) / len(quiz_results)), 1)
         if quiz_results
@@ -113,7 +142,11 @@ def compute_student_metrics(
         clamp_pct(sum(mark.percentage for mark in marks) / len(marks)) if marks else None
     )
 
-    quiz_results = latest_quiz_results(student_id, module_ids=scoped_modules or None)
+    quiz_results = (
+        latest_quiz_results_for_course(student_id, course_id, module_ids=scoped_modules or None)
+        if course_id
+        else latest_quiz_results(student_id, module_ids=scoped_modules or None)
+    )
     quiz_score = (
         round(clamp_pct(sum(r.percentage for r in quiz_results) / len(quiz_results)), 1)
         if quiz_results

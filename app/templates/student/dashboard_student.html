@@ -62,16 +62,16 @@
             <!-- Mini Stats Row -->
             <div class="mt-8 pt-6 border-t border-white/10 grid grid-cols-3 gap-4">
                 <div class="text-center">
-                    <p class="text-2xl font-bold text-white">{{ recent_quizzes|length|default(0) }}</p>
+                    <p class="text-2xl font-bold text-white">{{ quizzes_taken|default(academic.total_quizzes|default(0)) }}</p>
                     <p class="text-xs text-slate-400 mt-1">Quizzes Taken</p>
                 </div>
                 <div class="text-center border-x border-white/10">
-                    <p class="text-2xl font-bold text-white">{{ completed_assignments|default(0) }}</p>
-                    <p class="text-xs text-slate-400 mt-1">Assignments</p>
+                    <p class="text-2xl font-bold text-emerald-400">{{ quizzes_passed|default(0) }}</p>
+                    <p class="text-xs text-slate-400 mt-1">Quizzes Passed</p>
                 </div>
                 <div class="text-center">
-                    <p class="text-2xl font-bold text-emerald-400">{{ study_plans|length|default(0) }}</p>
-                    <p class="text-xs text-slate-400 mt-1">Study Plans</p>
+                    <p class="text-2xl font-bold text-white">{{ completed_assignments|default(0) }}</p>
+                    <p class="text-xs text-slate-400 mt-1">Assignments</p>
                 </div>
             </div>
         </div>
